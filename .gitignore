@@ -1,0 +1,15 @@
+# Sensitive configuration files
+connection_config.json
+update_config.json
+
+# Database backups
+*.sql
+
+# Python virtual environment (if used)
+venv/
+*.pyc
+__pycache__/
+
+# IDE/Editor specific files
+.vscode/
+.idea/

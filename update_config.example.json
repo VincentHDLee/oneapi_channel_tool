@@ -1,0 +1,65 @@
+{
+  "filters": {
+    "name_filters": ["Example Channel", "Test"],
+    "group_filters": ["default"],
+    "model_filters": ["gpt-4", "claude-3-opus"],
+    "tag_filters": ["Official"],
+    "match_mode": "any"
+  },
+  "updates": {
+    "models": {
+      "enabled": false,
+      "value": ["gpt-4-turbo", "gpt-4o"]
+    },
+    "group": {
+      "enabled": false,
+      "value": "vip,svip"
+    },
+    "model_mapping": {
+      "enabled": false,
+      "value": {
+        "gpt-3.5-turbo-16k": "gpt-4-turbo"
+      }
+    },
+    "tag": {
+      "enabled": false,
+      "value": "Updated Tag"
+    },
+    "priority": {
+      "enabled": false,
+      "value": 5
+    },
+    "weight": {
+      "enabled": false,
+      "value": 10
+    },
+    "setting": {
+      "enabled": false,
+      "value": {
+        "temperature": 0.8
+      }
+    },
+    "test_model": {
+      "enabled": false,
+      "value": "gpt-4-turbo"
+    },
+    "auto_ban": {
+      "enabled": false,
+      "value": 0
+    },
+    "base_url": {
+      "enabled": false,
+      "value": "https://new-proxy.example.com"
+    },
+    "status_code_mapping": {
+      "enabled": false,
+      "value": {
+        "429": 503
+      }
+    },
+    "status": {
+      "enabled": false,
+      "value": 1
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "site_url": "https://your-one-api-domain.com",
+  "api_token": "YOUR_ONE_API_ADMIN_TOKEN",
+  "user_id": "YOUR_ONE_API_USER_ID_FOR_LOGS"
+}
