@@ -9,7 +9,7 @@ import copy
 
 # 配置日志记录
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, # 设置 INFO 级别可以看到我们新增的日志
     format='%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
 )
 
@@ -64,7 +64,12 @@ class AppConfig:
                 cls.UPDATES = config.get('updates', {})
                 if not cls.FILTERS or not cls.UPDATES:
                      logging.warning(f"{path} 中缺少 'filters' 或 'updates' 部分，请检查文件结构。")
-                # 可以在这里添加更详细的验证逻辑，例如检查必要的子字段
+                # 验证 filters 结构 (示例)
+                expected_filter_keys = {'name_filters', 'group_filters', 'model_filters', 'tag_filters', 'type_filters', 'match_mode'}
+                provided_filter_keys = set(cls.FILTERS.keys())
+                missing_keys = expected_filter_keys - provided_filter_keys
+                if missing_keys:
+                    logging.warning(f"更新配置文件 {path} 的 'filters' 部分缺少键: {missing_keys}")
                 logging.info(f"加载更新配置成功，筛选条件: {cls.FILTERS.keys()}, 更新项: {cls.UPDATES.keys()}")
         except FileNotFoundError:
             logging.error(f"未找到更新配置文件: {path}")
@@ -102,10 +107,7 @@ def validate_match_mode(match_mode):
     logging.debug(f"验证匹配模式成功: {match_mode}")
 
 def match_filter(value, filter_list, match_mode):
-    """根据匹配模式和筛选列表判断值是否匹配"""
-    # 验证模式放在 filter_channels 中调用一次即可
-    # validate_match_mode(match_mode) # 移除重复验证
-
+    """根据匹配模式和筛选列表判断值是否匹配 (用于字符串类型字段)"""
     # 如果值是 None 或空字符串，且过滤器列表非空，则认为不匹配
     if not value and filter_list:
         return False
@@ -118,7 +120,8 @@ def match_filter(value, filter_list, match_mode):
         any(str(filter_value) == str(value) for filter_value in filter_list) if match_mode == "exact" else
         all(str(filter_value) not in str(value) for filter_value in filter_list) if match_mode == "none" else False
     )
-    logging.debug(f"匹配过滤器: value='{value}', filter_list={filter_list}, match_mode='{match_mode}', result={result}")
+    # 移除冗余的 debug 日志，避免过多输出
+    # logging.debug(f"匹配过滤器: value='{value}', filter_list={filter_list}, match_mode='{match_mode}', result={result}")
     return result
 
 def get_channel_list():
@@ -372,6 +375,7 @@ def filter_channels(channel_list):
     group_filters = filters_config.get("group_filters", [])
     model_filters = filters_config.get("model_filters", [])
     tag_filters = filters_config.get("tag_filters", [])
+    type_filters = filters_config.get("type_filters", []) # 新增：获取类型过滤器
     match_mode = filters_config.get("match_mode", "any") # 默认为 any
 
     try:
@@ -386,7 +390,8 @@ def filter_channels(channel_list):
         return filtered_channels
 
     logging.info(f"开始过滤 {len(channel_list)} 个渠道...")
-    logging.info(f"筛选条件: 名称={name_filters}, 分组={group_filters}, 模型={model_filters}, 标签={tag_filters}, 模式='{match_mode}'")
+    # 新增：在日志中显示 type_filters
+    logging.info(f"筛选条件: 名称={name_filters}, 分组={group_filters}, 模型={model_filters}, 标签={tag_filters}, 类型={type_filters}, 模式='{match_mode}'")
 
     for channel in channel_list:
         # --- 修改：增加对 channel 是否为字典的检查 ---
@@ -396,7 +401,9 @@ def filter_channels(channel_list):
 
         channel_name = channel.get('name', '未知名称')
         channel_id = channel.get('id', '未知ID')
-        logging.debug(f"检查渠道: {channel_name} (ID: {channel_id})")
+        channel_type = channel.get('type') # 获取渠道类型
+        # --- 新增：明确记录正在检查的渠道及其类型 ---
+        logging.info(f"正在检查渠道: ID={channel_id}, 名称='{channel_name}', 类型={channel_type}")
 
         # --- 执行匹配 ---
         name_matched = match_filter(channel.get("name", ""), name_filters, match_mode) if name_filters else True
@@ -412,7 +419,7 @@ def filter_channels(channel_list):
              elif match_mode == "none":
                  group_matched = all(gf not in group_list for gf in group_filters)
              else: group_matched = False
-             logging.debug(f"  分组匹配 ('{group_value}' vs {group_filters}, mode='{match_mode}'): {group_matched}")
+             # logging.debug(f"  分组匹配 ('{group_value}' vs {group_filters}, mode='{match_mode}'): {group_matched}")
         else:
              group_matched = True
 
@@ -426,18 +433,25 @@ def filter_channels(channel_list):
              elif match_mode == "none":
                  model_matched = all(mf not in model_list for mf in model_filters)
              else: model_matched = False
-             logging.debug(f"  模型匹配 ('{models_value}' vs {model_filters}, mode='{match_mode}'): {model_matched}")
+             # logging.debug(f"  模型匹配 ('{models_value}' vs {model_filters}, mode='{match_mode}'): {model_matched}")
         else:
              model_matched = True
 
         tag_matched = match_filter(channel.get("tag", ""), tag_filters, match_mode) if tag_filters else True
-        logging.debug(f"  名称匹配: {name_matched}, 分组匹配: {group_matched}, 模型匹配: {model_matched}, 标签匹配: {tag_matched}")
 
-        if name_matched and group_matched and model_matched and tag_matched:
-            logging.info(f"匹配到渠道: {channel_name} (ID: {channel_id}), 类型: {channel.get('type', '未知')}, 分组: '{group_value}', 标签: '{channel.get('tag', '')}'")
+        # --- 新增：类型匹配 ---
+        # 类型通常是精确匹配，检查渠道类型是否在 type_filters 列表中
+        type_matched = (channel_type in type_filters) if type_filters else True
+        # --- 新增：明确记录每个条件的匹配结果 ---
+        logging.info(f"  匹配结果: 名称={name_matched}, 分组={group_matched}, 模型={model_matched}, 标签={tag_matched}, 类型={type_matched} (目标类型: {type_filters if type_filters else '无'})")
+
+
+        # --- 修改：将 type_matched 加入判断条件 ---
+        if name_matched and group_matched and model_matched and tag_matched and type_matched:
+            logging.info(f"  >>> 匹配成功: ID={channel_id}, 名称='{channel_name}'")
             filtered_channels.append(channel)
         else:
-             logging.debug(f"渠道 {channel_name} 未完全匹配筛选条件.")
+             logging.info(f"  --- 未匹配: ID={channel_id}, 名称='{channel_name}'")
 
     if not filtered_channels:
         logging.warning("根据当前筛选条件，未匹配到任何渠道")
