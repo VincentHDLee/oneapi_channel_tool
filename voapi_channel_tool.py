@@ -179,6 +179,25 @@ def get_channel_list():
                 break
 
             logging.info(f"获取第 {page + 1} 页渠道成功, 记录数: {len(channel_records)}")
+            # --- 新增：打印每个渠道的非空信息 ---
+            for channel in channel_records:
+                if isinstance(channel, dict):
+                    channel_id = channel.get('id', '未知ID')
+                    channel_name = channel.get('name', '未知名称')
+                    print(f"\n--- 渠道信息: ID={channel_id}, 名称='{channel_name}' ---")
+                    for k, v in channel.items():
+                        # 检查值是否为 None 或空字符串/列表/字典
+                        is_empty = v is None or \
+                                   (isinstance(v, str) and not v.strip()) or \
+                                   (isinstance(v, (list, dict)) and not v)
+                        # 同时检查值是否为数字 0 或布尔值 False (这些通常是有意义的)
+                        is_meaningful_zero_or_false = isinstance(v, (int, float)) and v == 0 or isinstance(v, bool) and v is False
+                        if not is_empty or is_meaningful_zero_or_false:
+                            print(f"  {k}: {v}")
+                else:
+                    logging.warning(f"发现非字典类型的渠道记录: {channel}")
+            # --- 结束新增 ---
+
             all_channels.extend(channel_records) # 添加实际的记录
             page += 1
         except requests.exceptions.RequestException as e:
