@@ -1,0 +1,60 @@
+{
+  "filters": {
+    "name_filters": [],
+    "group_filters": [],
+    "model_filters": [],
+    "tag_filters": [],
+    "type_filters": [],
+    "match_mode": "any"
+  },
+  "updates": {
+    "models": {
+      "enabled": false,
+      "value": []
+    },
+    "group": {
+      "enabled": false,
+      "value": ""
+    },
+    "model_mapping": {
+      "enabled": false,
+      "value": {}
+    },
+    "tag": {
+      "enabled": false,
+      "value": ""
+    },
+    "priority": {
+      "enabled": false,
+      "value": 0
+    },
+    "weight": {
+      "enabled": false,
+      "value": 0
+    },
+    "setting": {
+      "enabled": false,
+      "value": {}
+    },
+    "test_model": {
+      "enabled": false,
+      "value": ""
+    },
+    "auto_ban": {
+      "enabled": false,
+      "value": 1
+    },
+    "base_url": {
+      "enabled": false,
+      "value": ""
+    },
+    "status_code_mapping": {
+      "enabled": false,
+      "value": {}
+    },
+    "status": {
+      "enabled": false,
+      "value": 1
+    }
+  }
+}

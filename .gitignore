@@ -1,6 +1,7 @@
 # Sensitive configuration files
-connection_config.json
-update_config.json
+update_config.json # Ignore root update config
+connection_configs/*.json # Ignore all connection configs...
+!connection_configs/*example*.json # ...except example files
 
 # Database backups
 *.sql
@@ -13,3 +14,12 @@ __pycache__/
 # IDE/Editor specific files
 .vscode/
 .idea/
+# Log files
+logs/
+channel_updater.log # Ignore root log file artifact
+
+# Undo data files
+undo_data/
+
+# Backup configuration files
+used_update_configs/
