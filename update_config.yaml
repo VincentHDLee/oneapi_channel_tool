@@ -1,0 +1,35 @@
+# 筛选条件: 更新 PaidQwen (sucoiapi)
+filters:
+  name_filters: ["PaidQwen"] # 筛选名称包含 "PaidQwen" 的渠道
+  # 清空其他筛选器
+  group_filters: []
+  model_filters: []
+  tag_filters: []
+  type_filters: []
+  exclude_name_filters: []
+  match_mode: "any"
+
+# 要应用的更新: 仅更新 base_url
+updates:
+  base_url:
+    enabled: true
+    mode: "overwrite"
+    value: "https://qwen-proxy.lihaodong213.workers.dev" # 更改为 qwen worker 地址
+
+  # 禁用其他所有更新
+  name: { enabled: false }
+  type: { enabled: false }
+  models: { enabled: false }
+  group: { enabled: false }
+  model_mapping: { enabled: false }
+  tag: { enabled: false }
+  priority: { enabled: false }
+  weight: { enabled: false }
+  setting: { enabled: false }
+  test_model: { enabled: false }
+  auto_ban: { enabled: false }
+  status_code_mapping: { enabled: false }
+  status: { enabled: false }
+  headers: { enabled: false }
+  openai_organization: { enabled: false }
+  override_params: { enabled: false }

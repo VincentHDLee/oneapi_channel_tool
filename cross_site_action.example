@@ -1,0 +1,71 @@
+# cross_site_action.example
+# =========================
+# 定义在不同 One API 实例之间执行的动作。
+# 核心概念：选择一个源渠道和一个目标渠道，然后对它们执行指定动作。
+# =========================
+
+# --- 动作定义 ---
+# (必需) 指定要执行的动作类型。
+# 可用动作:
+#   - compare_fields: 比较源和目标渠道指定字段的值，不修改任何渠道。
+#   - copy_fields: 将源渠道的指定字段值（根据模式）复制到目标渠道（会修改目标渠道，并生成撤销数据）。
+action: "compare_fields"
+
+# --- 源实例配置 ---
+source:
+  # (必需) 源实例的连接配置文件路径 (相对于项目根目录)
+  connection_config: "connection_configs/source_instance.yaml"
+  # (必需) 源渠道筛选器。必须精确匹配 *唯一* 的一个渠道。
+  channel_filter:
+    # 可以组合使用 name_filters, group_filters, model_filters, tag_filters, type_filters
+    # 确保筛选条件足够精确，仅匹配一个渠道。
+    # 示例：按名称精确匹配
+    name_filters: ["Source Channel Name To Compare"]
+    # 示例：或按 ID (如果知道的话，通常需要先查询)
+    # id_filters: [123] # 注意：id_filters 是一个假设，当前代码可能未直接支持，需确认 ChannelToolBase.filter_channels
+
+# --- 目标实例配置 ---
+target:
+  # (必需) 目标实例的连接配置文件路径
+  connection_config: "connection_configs/target_instance.yaml"
+  # (必需) 目标渠道筛选器。必须精确匹配 *唯一* 的一个渠道。
+  channel_filter:
+    name_filters: ["Target Channel Name To Compare"]
+
+# --- 操作特定参数 ---
+# 根据上面定义的 'action' 配置相应的参数块。
+
+# == 参数 for action: "compare_fields" ==
+compare_fields_params:
+  # (必需) 要比较值的字段名称列表。
+  fields_to_compare:
+    - name
+    - type
+    - models
+    - group
+    - base_url
+    - priority
+    - weight
+    # - model_mapping # 字典比较，会显示 JSON 对比
+    # - status_code_mapping
+    # - setting
+    # - headers
+    # - override_params
+
+# == 参数 for action: "copy_fields" ==
+# (如果 action 设置为 "copy_fields", 则需要配置此部分)
+# copy_fields_params:
+#   # (必需) 要从源复制到目标的字段列表。不允许 "id" 和 "key"。
+#   fields_to_copy:
+#     - models
+#     - group
+#     - priority
+#     - weight
+#     - base_url
+#     # - model_mapping
+#     # - setting
+#   # (可选, 默认 "overwrite") 复制模式。
+#   # - 对于列表字段 (models, group, tag): 支持 "overwrite", "append", "remove"
+#   # - 对于字典字段 (model_mapping, setting, etc.): 支持 "overwrite", "merge", "delete_keys"
+#   # - 对于其他简单字段: 仅支持 "overwrite"
+#   copy_mode: "overwrite"

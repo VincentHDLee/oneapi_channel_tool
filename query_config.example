@@ -1,0 +1,24 @@
+# query_config.example
+# 用于自定义渠道查询输出的字段
+
+# 如果此文件存在且 'query_fields' 列表非空，
+# 交互式查询菜单中的 "查询所有渠道" 功能将仅显示这些字段。
+# 如果此文件不存在或 'query_fields' 为空或无效，将默认显示 'id' 和 'name'。
+
+# 指定要查询并显示的渠道字段列表 (YAML 列表格式)
+# 有效字段名通常包括: id, name, type, group, models, base_url, status, priority, weight, test_model, tag 等
+# 请参考 channel_tool_base.py 或 API 返回的实际字段
+query_fields:
+#  - id
+#  - name
+#  - base_url
+#  - status
+#  - group
+
+# (可选) 筛选条件，结构与 update_config.yaml 类似。
+# 可用于在查询时预先过滤渠道。如果未指定，则查询所有渠道。
+# filters:
+#   name_filters: ["OpenAI"]
+#   exclude_name_filters: ["Azure"]
+#   # ... 其他筛选器 ...
+#   match_mode: "any"

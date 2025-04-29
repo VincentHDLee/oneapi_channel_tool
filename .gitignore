@@ -1,0 +1,36 @@
+# Sensitive configuration files
+update_config.yaml # Ignore the user's main config file
+# Explicitly ignore sensitive connection config files
+connection_configs/jd_cloud_dev.yaml
+connection_configs/sucoiapi.yaml
+# Note: We still want to track the example file and .gitkeep,
+# so we don't ignore the whole directory anymore.
+connection_config.example # Ignore root example connection config
+query_config.yaml # Ignore user's query config
+cross_site_config.yaml # Ignore user's cross-site config
+script_config.yaml # Ignore user's script config
+
+# Database backups
+*.sql
+
+# Python virtual environment (if used)
+venv/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# IDE/Editor specific files
+.vscode/
+.idea/
+
+# Runtime data files (logs, undo, backups, cached configs)
+oneapi_tool_utils/runtime_data/logs/*
+!oneapi_tool_utils/runtime_data/logs/.gitkeep
+oneapi_tool_utils/runtime_data/undo_data/*
+!oneapi_tool_utils/runtime_data/undo_data/.gitkeep
+oneapi_tool_utils/runtime_data/used_update_configs/*
+!oneapi_tool_utils/runtime_data/used_update_configs/.gitkeep
+oneapi_tool_utils/runtime_data/loaded_connection_configs/*
+!oneapi_tool_utils/runtime_data/loaded_connection_configs/.gitkeep
+
+channel_updater.log # Ignore potential root log file artifact (if logging setup fails early)

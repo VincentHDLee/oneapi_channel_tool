@@ -1,0 +1,27 @@
+# cross_site_action.yaml
+# =========================
+# 定义在不同 One API 实例之间执行的动作。
+# =========================
+
+# --- 动作定义 ---
+# (必需) 指定要执行的动作类型。
+# 可用动作:
+#   - compare_channel_counts: 比较源和目标站点的渠道总数。
+#   - compare_fields: 比较源和目标特定渠道的指定字段值。
+#   - copy_fields: 将源渠道的指定字段值复制到目标渠道。
+action: "compare_channel_counts" # 设置为比较渠道数量
+
+# --- 源实例配置 ---
+source:
+  # (必需) 源实例的连接配置文件路径
+  connection_config: "connection_configs/jd_cloud_dev.yaml"
+  # channel_filter 在此操作中不需要
+
+# --- 目标实例配置 ---
+target:
+  # (必需) 目标实例的连接配置文件路径
+  connection_config: "connection_configs/sucoiapi.yaml"
+  # channel_filter 在此操作中不需要
+
+# --- 操作特定参数 ---
+# compare_channel_counts 操作不需要特定参数

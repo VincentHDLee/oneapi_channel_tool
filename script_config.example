@@ -1,0 +1,23 @@
+# script_config.example
+# 通用脚本配置
+
+# API 相关设置
+api_settings:
+  # 并发 API 请求的最大数量 (用于测试禁用渠道等批量操作)
+  max_concurrent_requests: 5
+  # 单个 API 请求的超时时间 (秒)
+  request_timeout: 60
+  # 两次 API 请求之间的最小间隔时间 (毫秒)。设置为 0 或省略表示不等待。
+  # 用于避免触发目标 API 的速率限制。建议值：100-1000 毫秒，根据实际情况调整。
+  request_interval_ms: 100
+
+# 不同 API 类型获取渠道列表时的分页大小
+api_page_sizes:
+  newapi: 100 # newapi 默认分页大小
+  voapi: 40   # voapi 默认分页大小 (根据实际测试调整)
+
+# 日志相关设置
+logging:
+  # 默认日志记录级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  # 可以通过命令行 --log-level 参数覆盖
+  level: "INFO"

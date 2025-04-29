@@ -1,0 +1,80 @@
+{
+  "filters": {
+    "name_filters": [],
+    "group_filters": [],
+    "model_filters": [],
+    "tag_filters": [],
+    "type_filters": [],
+    "match_mode": "any"
+  },
+  "updates": {
+    "name": {
+      "enabled": false,
+      "value": ""
+    },
+    "type": {
+      "enabled": false,
+      "value": 0
+    },
+    "models": {
+      "enabled": false,
+      "value": []
+    },
+    "group": {
+      "enabled": false,
+      "value": ""
+    },
+    "model_mapping": {
+      "enabled": false,
+      "value": {}
+    },
+    "tag": {
+      "enabled": false,
+      "value": ""
+    },
+    "priority": {
+      "enabled": false,
+      "value": 0
+    },
+    "weight": {
+      "enabled": false,
+      "value": 0
+    },
+    "setting": {
+      "enabled": false,
+      "value": {}
+    },
+    "headers": {
+      "enabled": false,
+      "value": {}
+    },
+    "openai_organization": {
+      "enabled": false,
+      "value": ""
+    },
+    "param_override": {
+      "enabled": false,
+      "value": {}
+    },
+    "test_model": {
+      "enabled": false,
+      "value": ""
+    },
+    "auto_ban": {
+      "enabled": false,
+      "value": 0
+    },
+    "base_url": {
+      "enabled": false,
+      "value": ""
+    },
+    "status_code_mapping": {
+      "enabled": false,
+      "value": {}
+    },
+    "status": {
+      "enabled": false,
+      "value": 1
+    }
+  }
+}

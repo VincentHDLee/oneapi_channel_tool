@@ -1,0 +1,28 @@
+# query_config.yaml
+# 用于自定义渠道查询输出的字段
+
+# 指定要查询并显示的渠道字段列表
+# 有效字段名通常包括: id, name, type, group, models, base_url, status, priority, weight, test_model, tag 等
+# 请参考 channel_tool_base.py 或 API 返回的实际字段
+query_fields:
+  - name
+  - base_url
+
+# (可选) 筛选条件，结构与 update_config.yaml 类似。
+# 如果需要，可以在这里添加筛选器来缩小查询范围。
+# filters:
+#   # 渠道名称包含列表中的任意一个字符串
+#   name_filters: []
+#   # 渠道分组属于列表中的任意一个
+#   group_filters: []
+#   # 渠道支持的模型包含列表中的任意一个
+#   model_filters: []
+#   # 渠道标签包含列表中的任意一个
+#   tag_filters: []
+#   # 渠道类型为列表中的任意一个数字
+#   type_filters: []
+#   # 排除名称过滤器
+#   exclude_name_filters: []
+#   # ... 其他排除过滤器 ...
+#   # 筛选模式: "any" 或 "all" (暂未完全实现)
+#   match_mode: "any"
