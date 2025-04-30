@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-使用 channel_tool_base 模块的 newapi 渠道更新工具实现。
+使用 channel_tool_base 模块的 'newapi' API 类型渠道更新工具实现。
 """
 import json
 import logging

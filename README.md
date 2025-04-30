@@ -88,7 +88,7 @@
     *   `headers`: 统一添加或修改请求头。
     *   `name`: 支持覆盖或使用正则表达式批量重命名。
     *   以及其他如 `tag`, `setting`, `test_model`, `auto_ban`, `status_code_mapping`, `openai_organization`, `override_params` 等（具体字段支持取决于目标 API 版本）。
-4.  **适配不同 API 版本:** 工具通过在 `connection_configs` 中设置 `api_type` (`newapi` 或 `voapi`) 来适配不同系统版本可能存在的 API Endpoint 差异（通常 `newapi` 对应 `/api/channel/` 路径，而 `voapi` 对应较旧的 `/api/v1/channel/` 路径或与 VoAPI 项目本身的接口一致）。**您需要根据您目标实例的实际接口结构选择正确的 `api_type`**。
+4.  **适配不同 API 分支:** 工具通过在 `connection_configs` 中设置 `api_type` (`newapi` 或 `voapi`) 来适配不同分支版本可能存在的 API Endpoint 差异（例如 `newapi` 通常使用 `/api/channel/` 路径，而 `voapi` 可能使用 `/api/v1/channel/` 或其他特定路径）。**您需要根据您目标实例的实际接口结构选择正确的 `api_type`**。
 5.  **安全与效率:**
     *   **模拟运行与确认:** 强制的模拟运行步骤让您在实际更改前预览所有变更，防止误操作。
     *   **撤销功能:** 为单站点更新提供了一层保障，允许回滚到上次成功更新前的状态。
@@ -116,7 +116,7 @@
 ├── oneapi_tool_utils/        # One API 通信层、工具函数和运行时数据
 │   ├── channel_tool_base.py  # API 通信的抽象基类
 │   ├── newapi_channel_tool.py # New API (v0.6.0+) 类型实现
-│   ├── voapi_channel_tool.py # 旧版 VO API 类型实现
+│   ├── voapi_channel_tool.py # VoAPI 类型实现
 │   ├── config_loaders.py     # 配置加载和缓存逻辑
 │   ├── data_helpers.py       # 数据规范化函数 (例如转为 set/dict)
 │   ├── filtering_utils.py    # 渠道过滤逻辑
@@ -167,8 +167,8 @@
     # 用于记录操作日志的用户 ID (可选, 默认为 '1')
     user_id: "YOUR_ONE_API_USER_ID_FOR_LOGS"
     # 目标 One API 实例的接口类型 (必需)
-    # "newapi": 适用于较新版本 (通常含 /api/channel/)
-    # "voapi": 适用于较旧版本 (通常含 /api/v1/channel/)
+    # "newapi": 指 One API 的一个分支，通常使用 /api/channel/ 端点路径。
+    # "voapi": 指 One API 的另一个分支，可能使用 /api/v1/channel/ 或其他特定端点路径。
     api_type: "newapi" # 或 "voapi"
     ```
     *   你可以创建多个 `.yaml` 连接配置文件来管理不同的 One API 实例。
@@ -301,8 +301,8 @@ user_id: "YOUR_ONE_API_USER_ID_FOR_LOGS"
 # 目标 One API 实例的接口类型 (必需)
 # 用于指定脚本应使用哪种 API 协议与你的 One API 实例通信。
 # 有效值:
-#   "newapi": 适用于较新版本的 One API (通常指包含 /api/channel/ 接口的版本)。
-#   "voapi": 适用于较旧版本的 One API (通常指包含 /api/v1/channel/ 接口的版本)。
+#   "newapi": 指 One API 的一个分支，通常使用 /api/channel/ 端点路径。
+#   "voapi": 指 One API 的另一个分支，可能使用 /api/v1/channel/ 或其他特定端点路径。
 # 请根据你的 One API 实例版本选择正确的值。
 # 示例: "newapi" 或 "voapi"
 api_type: "newapi" # 或 "voapi"
