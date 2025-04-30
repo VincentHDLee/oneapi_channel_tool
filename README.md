@@ -106,7 +106,8 @@
 │   ├── __init__.py           # 将此目录标记为 Python 包
 │   ├── cli_handler.py        # 命令行和交互逻辑
 │   ├── config_utils.py       # 配置加载和路径常量
-│   ├── cross_site_handler.py # 跨站点操作逻辑
+│   ├── cross_site_handler.py # 跨站点操作流程协调器 (加载配置、调用 actions)
+│   ├── cross_site_actions.py # 跨站点具体操作的执行逻辑 (复制、比较等)
 │   ├── log_utils.py          # 日志设置
 │   ├── single_site_handler.py # 单站点操作逻辑
 │   └── undo_utils.py         # 撤销逻辑
