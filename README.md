@@ -48,6 +48,56 @@
     *   **测试并启用禁用渠道**: 新增功能，用于自动测试状态为“自动禁用”的渠道，并在测试通过后将其启用。现在支持 `newapi` 和 `voapi` 类型。
     *   **智能确认**: 在“测试并启用”模式下，如果测试失败的原因仅为配额问题 (HTTP 429)，脚本将自动启用测试通过的渠道（除非使用 `--yes`）。只有当存在其他类型的错误时，才会提示用户确认。
 
+## One API, New API, VoAPI 项目概述与本工具的关联
+
+本节旨在澄清 `One API`、`New API` 和 `VoAPI` 这三个项目之间的关系，并说明本批量更新工具如何有效地管理基于这些系统的实例。我们之前的 README 可能对此存在一些估计偏差，现根据官方（或项目自身）文档进行修正。
+
+### 项目简述
+
+1.  **One API (`songquanpeng/one-api`)**
+    *   **定位:** **基础与核心**。这是一个开源项目，旨在提供一个统一的、兼容 OpenAI API 标准的接口，用于访问多种大型语言模型（如 OpenAI、Azure、Claude、Gemini、国内模型、Ollama 本地模型等）。
+    *   **核心特性:** 强大的**渠道管理**（支持多种源、负载均衡、模型列表）、**令牌管理**（额度、有效期、权限控制）、**用户与分组管理**（支持不同计费倍率）、兑换码系统、日志记录、模型映射、多实例部署、基本的 Web UI 用于配置管理。
+    *   **许可证:** MIT 许可证，但**要求在页面底部保留署名和项目链接**。
+    *   **关键价值:** 稳定、通用、可扩展的 API 聚合与分发基础平台。
+
+2.  **New API (`Calcium-Ion/new-api`)**
+    *   **定位:** **功能增强型分支**。基于 `One API` 进行二次开发的开源项目，重点在于添加新功能和集成。
+    *   **核心特性 (相比 One API 增加/增强):** 全新的 UI 界面、在线充值（易支付）、通过 Key 查询额度、支持按次计费、渠道加权随机、数据看板、更多登录方式（LinuxDO、Telegram、OIDC）、支持 Rerank/OpenAI Realtime/Claude Messages 等特定 API 格式、缓存计费、支持更多第三方渠道（如 Midjourney-Proxy, Suno API, Dify）。
+    *   **许可证:** 继承 MIT 许可证（也应遵循 One API 的署名要求）。
+    *   **关键价值:** 在 One API 基础上提供更多前沿功能、特定模型/服务集成和更灵活的运营选项。
+
+3.  **VoAPI (`VoAPI/VoAPI`)**
+    *   **定位:** **UI/UX 与特定运营功能优化型分支**。根据其 README，它基于 `New API` 和 `One API` 进行二次开发，但其性质为**闭源**，仅供个人学习使用，禁止商业用途。
+    *   **核心特性 (相比 New API 增加/优化):** 显著的**界面风格差异与美化**、更好的国际化 (i18n) 支持、服务监控页、签到功能、易支付自定义渠道、模型价格页增强（单位/倍率切换、模型信息展示）、敏感词风控、全局速率限制、用户余额每日清空、自定义主题色、SEO 支持、Playground 优化、后台 JSON 编辑器、API 多线路支持、自定义菜单等。**明确不支持** New API 中的某些第三方渠道（如 Midj, Suno）。
+    *   **许可证:** 项目声明为闭源，仅供个人学习，禁止商用。
+    *   **关键价值:** 提供高度优化的用户界面和针对特定运营场景（如签到、风控、多语言）的功能增强，但牺牲了部分 New API 的第三方集成和开源特性。
+
+### 本工具如何服务于这些项目
+
+本 "One API 渠道批量更新工具" 旨在**极大简化和提升**对上述任一系统（One API、New API、VoAPI）中**渠道（Channels）的管理效率**，尤其是在拥有大量渠道需要维护时。其核心价值体现在：
+
+1.  **通用渠道管理:** 所有这三个项目都依赖“渠道”来对接上游 API 供应商。本工具的核心功能——**批量查询、筛选和更新渠道属性**——对它们都至关重要。
+2.  **精细化筛选:** 通过名称、分组、模型、标签、类型等多种条件筛选渠道，方便您精确地定位需要修改的目标，无论您使用的是哪个系统。
+3.  **批量属性更新:** 支持批量修改渠道的常见且关键的属性，例如：
+    *   `models`: 管理渠道支持的模型列表。
+    *   `group`: 批量调整渠道所属分组。
+    *   `base_url`: 统一更新代理地址或接口节点。
+    *   `status`: 批量启用或禁用渠道。
+    *   `priority` / `weight`: 调整渠道的负载均衡优先级和权重。
+    *   `model_mapping`: 批量设置模型重定向规则。
+    *   `headers`: 统一添加或修改请求头。
+    *   `name`: 支持覆盖或使用正则表达式批量重命名。
+    *   以及其他如 `tag`, `setting`, `test_model`, `auto_ban`, `status_code_mapping`, `openai_organization`, `override_params` 等（具体字段支持取决于目标 API 版本）。
+4.  **适配不同 API 版本:** 工具通过在 `connection_configs` 中设置 `api_type` (`newapi` 或 `voapi`) 来适配不同系统版本可能存在的 API Endpoint 差异（通常 `newapi` 对应 `/api/channel/` 路径，而 `voapi` 对应较旧的 `/api/v1/channel/` 路径或与 VoAPI 项目本身的接口一致）。**您需要根据您目标实例的实际接口结构选择正确的 `api_type`**。
+5.  **安全与效率:**
+    *   **模拟运行与确认:** 强制的模拟运行步骤让您在实际更改前预览所有变更，防止误操作。
+    *   **撤销功能:** 为单站点更新提供了一层保障，允许回滚到上次成功更新前的状态。
+    *   **并发处理:** 利用异步请求提高处理大量渠道时的效率。
+6.  **高级维护功能:**
+    *   **测试并启用禁用渠道 (`--test-and-enable-disabled`):** 自动化地检查自动禁用的渠道是否恢复可用，并根据测试结果（智能处理 429 错误）决定是否重新启用，极大减轻了渠道维护负担。
+    *   **跨站点操作:** 支持在不同实例间复制或比较渠道配置，便于环境同步或迁移。
+
+总之，无论您运营的是原版 One API、功能丰富的 New API，还是界面优化的 VoAPI，只要您需要管理超过少量渠道，本工具都能提供强大的、自动化的批量管理能力，显著提升您的运营效率和准确性。只需确保在连接配置中正确设置 `api_type` 以匹配您所管理的实例即可。
 ## 目录结构
 
 ```
@@ -62,10 +112,14 @@
 │   └── undo_utils.py         # 撤销逻辑
 ├── connection_configs/       # 存放用户定义的 One API 实例连接配置 (YAML)
 │   └── your_connection_config.yaml # 示例：你的连接配置
-├── oneapi_tool_utils/        # One API 通信层和运行时数据
-│   ├── channel_tool_base.py  # 基础工具类和抽象基类
-│   ├── newapi_channel_tool.py # New API 类型实现
-│   ├── voapi_channel_tool.py # VO API 类型实现
+├── oneapi_tool_utils/        # One API 通信层、工具函数和运行时数据
+│   ├── channel_tool_base.py  # API 通信的抽象基类
+│   ├── newapi_channel_tool.py # New API (v0.6.0+) 类型实现
+│   ├── voapi_channel_tool.py # 旧版 VO API 类型实现
+│   ├── config_loaders.py     # 配置加载和缓存逻辑
+│   ├── data_helpers.py       # 数据规范化函数 (例如转为 set/dict)
+│   ├── filtering_utils.py    # 渠道过滤逻辑
+│   ├── network_utils.py      # 网络请求 (例如带重试的 session)
 │   ├── update_config.clean.json # 内部使用的干净配置模板 (JSON)
 │   └── runtime_data/         # 运行时生成的数据 (日志、备份等)
 │       ├── logs/             # 日志文件存放目录
@@ -82,8 +136,11 @@
 ├── script_config.yaml        # (可选) 脚本通用配置文件 (YAML, 位于根目录)
 ├── requirements.txt          # Python 依赖
 ├── README.md                 # 本文档
-├── DEVELOPMENT.md            # 开发文档
-├── REFACTORING_PLAN.md       # (可选) 重构计划文档
+├── docs/                     # 文档目录
+│   └── DEVELOPMENT.md        # 主要开发文档
+│   └── ...                   # 其他开发相关文档
+├── tests/                    # 测试文件目录
+│   └── test_config_utils.py  # 示例测试文件
 └── .gitignore
 └── LICENSE
 ```

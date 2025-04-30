@@ -5,8 +5,7 @@
 # 有效字段名通常包括: id, name, type, group, models, base_url, status, priority, weight, test_model, tag 等
 # 请参考 channel_tool_base.py 或 API 返回的实际字段
 query_fields:
-  - name
-  - base_url
+  - models
 
 # (可选) 筛选条件，结构与 update_config.yaml 类似。
 # 如果需要，可以在这里添加筛选器来缩小查询范围。

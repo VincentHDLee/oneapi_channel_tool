@@ -371,7 +371,7 @@ async def run_test_and_enable_disabled(args, connection_config_path: str | Path,
     # 2. 获取所有渠道
     logging.info("获取所有渠道列表...")
     try:
-        channel_list, get_list_message = tool_instance.get_all_channels()
+        channel_list, get_list_message = await tool_instance.get_all_channels()
         if channel_list is None:
             print(f"\n错误：获取渠道列表失败。详情请查看日志。\n失败原因: {get_list_message}")
             return 1
