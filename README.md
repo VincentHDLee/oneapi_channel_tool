@@ -505,6 +505,45 @@ compare_fields_params:
 *   `newapi` 和 `voapi` 支持的更新字段可能略有不同，脚本会尝试应用所有在 `updates` 中启用的字段，目标 API 不支持的字段会被忽略或报错（具体行为取决于目标 API）。
 *   **并发、超时与分页**: 可以通过编辑根目录下的 `script_config.yaml` 文件来调整最大并发请求数 (`max_concurrent_requests`)、请求超时时间 (`request_timeout`) 以及获取渠道列表时的分页大小 (`api_page_sizes`)，以优化脚本性能和稳定性，特别是在与本地或网络不稳定的 API 交互时，或处理大量渠道时。**注意**: 部分较旧的 `voapi` 实例可能不支持或忽略获取渠道列表时的 `page_size` 参数，即使配置了较大的值，服务器仍可能只返回默认数量（通常是 10 条）的记录。
 
+## 定时任务示例 (Scheduled Task Examples)
+
+你可以使用操作系统的任务调度器来定期执行某些维护任务，例如自动测试并启用已禁用的渠道。
+
+### Linux (使用 cron)
+
+1.  打开你的 crontab 进行编辑：
+    ```bash
+    crontab -e
+    ```
+2.  添加一行来定义任务。以下示例表示每天凌晨 3:00 执行一次“测试并启用禁用渠道”任务，目标是 `connection_configs/my_config.yaml`，并将日志附加到 `/var/log/oneapi_channel_test_enable.log`：
+    ```cron
+    0 3 * * * cd /path/to/oneapi_channel_tool && ./run_tool.sh --test-and-enable-disabled --connection-config connection_configs/my_config.yaml -y >> /var/log/oneapi_channel_test_enable.log 2>&1
+    ```
+    *   **重要:** 将 `/path/to/oneapi_channel_tool` 替换为本项目的实际绝对路径。
+    *   将 `connection_configs/my_config.yaml` 替换为你的目标连接配置文件路径。
+    *   确保运行 `cron` 的用户有权限进入项目目录、执行 `run_tool.sh` 并写入指定的日志文件。
+    *   `-y` 参数用于自动确认，因为定时任务无法进行交互。
+    *   `>> /var/log/oneapi_channel_test_enable.log 2>&1` 将标准输出和标准错误都附加到日志文件中。
+
+### Windows (使用任务计划程序 Task Scheduler)
+
+1.  打开“任务计划程序”（可以通过在开始菜单搜索 "Task Scheduler" 找到）。
+2.  在右侧操作栏中，点击“创建基本任务...”。
+3.  **名称:** 给任务起一个描述性的名称，例如 "OneAPI Channel Test & Enable"。
+4.  **触发器:** 选择任务执行的频率（例如，“每天”）。设置具体的执行时间（例如，凌晨 3:00）。
+5.  **操作:** 选择“启动程序”。
+6.  **程序或脚本:** 浏览并找到你的 `python.exe` 或你环境中用于运行 Python 脚本的可执行文件（如果使用了虚拟环境，路径可能不同）。
+7.  **添加参数 (可选):**
+    *   在这里输入脚本的完整路径和所需的命令行参数。你需要将整个 `./run_tool.sh ...` 命令转换为直接调用 `main_tool.py` 的形式，因为 Task Scheduler 通常直接运行可执行文件。
+    *   示例： `C:\path\to\oneapi_channel_tool\main_tool.py --test-and-enable-disabled --connection-config connection_configs\my_config.yaml -y`
+    *   **重要:** 将 `C:\path\to\oneapi_channel_tool\` 替换为项目的实际路径。使用 Windows 风格的反斜杠 `\`。
+    *   将 `connection_configs\my_config.yaml` 替换为你的目标连接配置文件路径。
+8.  **起始位置 (可选):**
+    *   输入项目的根目录路径，例如 `C:\path\to\oneapi_channel_tool\`。这确保脚本能正确找到相对路径的配置文件。
+9.  **完成:** 查看设置并点击“完成”。
+10. **(推荐) 配置日志记录:** 由于直接在参数中重定向输出比较复杂，建议在脚本内部或通过修改 `run_tool.sh` (如果 Windows 环境支持 shell 脚本) 来处理日志记录，或者依赖脚本默认的日志文件功能 (`oneapi_tool_utils/runtime_data/logs/`)。你也可以配置任务计划程序将操作输出记录到其历史记录中。
+
+**注意:** 确保运行任务的用户具有执行 Python 脚本和访问项目文件所需的权限。
 ## 许可证
 
 本项目采用 [MIT 许可证](LICENSE)。
