@@ -10,8 +10,8 @@
     *   使用 `update_config.yaml` 定义渠道筛选规则和要应用的更新。
 *   **交互式与非交互式运行**:
     *   直接运行 `python main_tool.py` 进入交互模式，引导选择连接配置（API 类型将从配置中自动读取）。
-    *   **交互式主菜单**: 在交互模式下，如果检测到上次操作的撤销文件，会显示菜单让用户选择执行新更新、撤销上次操作（并显示上次更新摘要）或退出。
-    *   支持命令行参数，方便自动化和脚本调用。
+    *   **交互式主菜单**: 在交互模式下，如果检测到上次操作的撤销文件，会显示菜单让用户选择执行新更新、撤销上次操作（并显示上次更新摘要）、查询所有渠道（可配合 `query_config.yaml` 进行筛选和自定义字段显示）或退出。
+    *   支持命令行参数，方便自动化和脚本调用，包括新增的 `--find-key` 用于直接查询特定 API Key 的渠道。
 *   **强制模拟与确认**:
     *   脚本在执行更新前，**总是**先进行模拟运行，显示详细的计划变更。
     *   模拟运行后，除非使用 `-y` / `--yes` 参数，否则会**询问用户确认**是否执行实际更新。
@@ -77,7 +77,7 @@
 本 "One API 渠道批量更新工具" 旨在**极大简化和提升**对上述任一系统（One API、New API、VoAPI）中**渠道（Channels）的管理效率**，尤其是在拥有大量渠道需要维护时。其核心价值体现在：
 
 1.  **通用渠道管理:** 所有这三个项目都依赖“渠道”来对接上游 API 供应商。本工具的核心功能——**批量查询、筛选和更新渠道属性**——对它们都至关重要。
-2.  **精细化筛选:** 通过名称、分组、模型、标签、类型等多种条件筛选渠道，方便您精确地定位需要修改的目标，无论您使用的是哪个系统。
+2.  **精细化筛选:** 通过名称、分组、模型、标签、类型、ID 以及 **API Key (使用 `key_filter`，尤其对 `voapi` 实例有效)** 等多种条件筛选渠道，方便您精确地定位需要修改的目标，无论您使用的是哪个系统。
 3.  **批量属性更新:** 支持批量修改渠道的常见且关键的属性，例如：
     *   `models`: 管理渠道支持的模型列表。
     *   `group`: 批量调整渠道所属分组。
@@ -175,7 +175,7 @@
 
 3.  **配置操作规则**:
     *   **单站点批量更新**: 编辑根目录下的 `update_config.yaml` 文件（如果不存在，可以从 `update_config.example` 复制）。
-        *   在 `filters` 部分设置筛选条件。
+        *   在 `filters` 部分设置筛选条件 (支持 `id`, `name_filters`, `group_filters`, `model_filters`, `tag_filters`, `type_filters` 以及新增的 `key_filter` 用于精确匹配 API Key)。
         *   在 `updates` 部分定义要应用的更新。
     *   **跨站点渠道操作**: 编辑根目录下的 `cross_site_config.yaml` 文件（如果不存在，可以从 `cross_site_config.example` 复制）。
         *   定义 `action` (例如 `copy_fields`)。
@@ -245,18 +245,19 @@
 ## 命令行参数
 
 ```
-usage: run_tool.sh [-h] [--update | --undo | --test-and-enable-disabled] [--connection-config <path>] [--clear-config] [-y]
+usage: run_tool.sh [-h] [--update | --undo | --test-and-enable-disabled | --find-key <API_KEY_TO_FIND>]
+                   [--connection-config <path>] [--clear-config] [-y]
                    [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--log-file <path>]
 
 One API 渠道批量更新工具
 
 运行模式 (选择一种):
-  --update              执行更新操作 (默认行为)。
-  --undo                执行撤销操作，恢复到上次执行更新前的状态。
-                        需要选择或指定连接配置 (API 类型将从配置中读取)。
+  --update              执行更新操作 (默认行为，需要 --connection-config)。
+  --undo                执行撤销操作 (需要 --connection-config)。
   --test-and-enable-disabled
-                        测试自动禁用的渠道并尝试启用它们 (需要指定 --connection-config)。
-                        支持 newapi 和 voapi 类型。
+                        测试自动禁用的渠道并尝试启用 (需要 --connection-config)。
+  --find-key <API_KEY_TO_FIND>
+                        查找指定 API Key 所在的渠道并打印其信息 (需要 --connection-config)。
 单站点目标:
   --connection-config <path>
                         指定单站点操作的目标连接配置文件路径。
@@ -311,22 +312,43 @@ api_type: "newapi" # 或 "voapi"
 ### `update_config.example` (位于根目录)
 
 ```yaml
-# 筛选条件
+# 筛选条件: 用于选择要执行更新操作的目标渠道
+# 注意: 所有启用的筛选器和排除器都会生效。
 filters:
-  # 渠道名称包含列表中的任意一个字符串
+  # --- 包含性筛选器 ---
+  # 如果启用了以下任何一个过滤器，渠道必须满足该过滤器中的 *至少一个* 条件才会被考虑。
+
+  # 渠道 ID 精确匹配: 如果提供，则仅匹配此 ID 的渠道，其他筛选器将被忽略。
+  # id: 123 # 示例：只操作 ID 为 123 的渠道
+
+  # API Key 精确匹配: 如果提供 (且 id 未提供)，则仅匹配此 API Key 的渠道。
+  # 主要用于 voapi 实例，因为 newapi 实例通常不在渠道列表 API 中返回 key。
+  # key_filter: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # 示例：替换为实际的 API Key
+
+  # 渠道名称过滤器: 列表中的字符串会被用于 *部分匹配* 渠道名称 (区分大小写)。
   name_filters: ["Example Channel", "Test"]
-  # 渠道分组属于列表中的任意一个
+
+  # 渠道分组过滤器: 列表中的字符串会与渠道所属的分组进行 *完全匹配*。
   group_filters: ["default"]
-  # 渠道支持的模型包含列表中的任意一个
+
+  # 支持模型过滤器: 列表中的模型名称会与渠道支持的模型列表进行 *完全匹配*。
   model_filters: ["gpt-4", "claude-3-opus"]
-  # 渠道标签包含列表中的任意一个
+
+  # 渠道标签过滤器: 列表中的标签会与渠道设置的标签进行 *完全匹配*。
   tag_filters: ["Official"]
-  # 渠道类型为列表中的任意一个数字 (例如 0: OpenAI, 1: Anthropic, 8: 自定义)
-  type_filters: [0, 1, 8]
-  # 筛选模式:
-  # "any": 满足任一启用的筛选器类型内部的任一条件即可
-  # "all": (暂未完全实现，目前行为类似 any) 要求所有启用的过滤器类型都必须至少匹配一个条件
-  match_mode: "any"
+
+  # 渠道类型过滤器: 列表中的数字会与渠道的类型 ID 进行 *完全匹配*。
+  type_filters: [0, 9]
+
+  # --- 排除性筛选器 (在包含性筛选器之后应用，具有否决权) ---
+  exclude_name_filters: ["_复制", "_backup"]
+  exclude_group_filters: ["test", "deprecated"]
+  exclude_model_filters: ["gpt-3.5-turbo-instruct"]
+  exclude_model_mapping_keys: ["gpt-3.5-turbo"]
+  exclude_override_params_keys: ["temperature"]
+
+  # --- 筛选逻辑模式 (适用于多个启用的包含性筛选器之间的关系) ---
+  match_mode: "any" # "any" 或 "all"
 
 # 要应用的更新
 updates:

@@ -65,7 +65,20 @@ def channel_matches_filters(channel, filters_config):
             logging.debug(f"  - ID 精确匹配检查 (原始类型): channel_id={channel_id}, filter_id={filter_id_value}, 结果={match}")
             return match
 
-    # --- 常规筛选器 (仅在没有精确 ID 筛选时应用) ---
+    # --- 精确 Key 匹配 (次高优先级，在 ID 之后，常规筛选器之前) ---
+    # 主要用于 voapi 实例，但可通用。
+    # key_filter 应该是一个字符串值用于精确匹配。
+    filter_key_value = filters_config.get('key_filter') # 新增筛选器
+    if filter_key_value is not None:
+        channel_key_val = channel.get('key')
+        if channel_key_val is None: # 如果 'key' 字段不存在或为 None，尝试 'apikey'
+            channel_key_val = channel.get('apikey')
+        
+        match = (channel_key_val == filter_key_value)
+        logging.debug(f"  - Key 精确匹配检查: channel_key='{channel_key_val}', filter_key='{filter_key_value}', 结果={match} (渠道ID: {channel_id})")
+        return match
+
+    # --- 常规筛选器 (仅在没有精确 ID 或 Key 筛选时应用) ---
     name_filters = filters_config.get("name_filters", [])
     exclude_name_filters = filters_config.get("exclude_name_filters", [])
     group_filters = filters_config.get("group_filters", [])
@@ -106,10 +119,17 @@ def channel_matches_filters(channel, filters_config):
         return False
 
     # --- 包含逻辑 ---
-    has_include_filter = any([name_filters, group_filters, model_filters, tag_filters, type_filters])
-    if not has_include_filter:
-        logging.debug(f"渠道 {channel_name} (ID: {channel_id}) 因无包含过滤器而匹配 (已通过排除)")
-        return True
+    # 检查是否有任何启用的包含型筛选器 (除了 key_filter，因为它已经处理过了)
+    has_include_filter = any([
+        name_filters,
+        group_filters,
+        model_filters,
+        tag_filters,
+        type_filters
+    ])
+    if not has_include_filter: # 如果没有其他包含型过滤器了
+        logging.debug(f"渠道 {channel_name} (ID: {channel_id}) 因无其他包含过滤器而匹配 (已通过精确ID/Key匹配和排除逻辑)")
+        return True # 如果通过了前面的精确匹配和排除，且没有其他包含条件，则算匹配
 
     if match_mode == "all":
         all_matched = True
@@ -174,7 +194,7 @@ def filter_channels(channel_list: list, filters_config: dict | None = None) -> l
     # 构建日志信息
     log_parts = [f"模式='{match_mode}'"]
     known_filters = [
-        "id", "name_filters", "exclude_name_filters",
+        "id", "key_filter", "name_filters", "exclude_name_filters", # 添加 key_filter 到 known_filters
         "group_filters", "exclude_group_filters",
         "model_filters", "exclude_model_filters",
         "tag_filters", "type_filters",

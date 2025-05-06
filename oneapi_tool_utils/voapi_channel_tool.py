@@ -346,13 +346,14 @@ class VoApiChannelTool(ChannelToolBase):
 
 
     # --- 实现抽象的格式化方法 ---
-    def format_list_field_for_api(self, field_name: str, data_set: set) -> list:
+    def format_list_field_for_api(self, field_name: str, data_set: set) -> str:
         """
-        VO API 可能期望列表字段（如 models）是 JSON 数组。
+        VO API 的 'models' 字段期望一个逗号分隔的字符串。
+        其他列表字段的行为可能不同，但为了安全，默认也使用字符串。
         """
-        # 对集合元素排序以确保一致性，然后转换为列表
-        formatted_value = sorted(list(data_set))
-        logging.debug(f"格式化列表字段 '{field_name}' 为列表对象: {formatted_value}")
+        # 对集合元素排序以确保一致性
+        formatted_value = ",".join(sorted(list(data_set)))
+        logging.debug(f"格式化列表字段 '{field_name}' 为逗号分隔字符串 (VOAPI): {repr(formatted_value)}")
         return formatted_value
 
     def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> dict:

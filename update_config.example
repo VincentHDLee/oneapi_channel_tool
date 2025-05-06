@@ -28,6 +28,11 @@ filters:
   # 5: iFlytek Spark, 6: Alibaba Qwen, 7: Baichuan, 8: 自定义, 9: Azure OpenAI, ...
   type_filters: [0, 9] # 例如，只筛选 OpenAI 和 Azure OpenAI 类型的渠道
 
+  # API Key 精确匹配过滤器: 使用渠道的 API Key进行 *完全匹配*。
+  # 主要用于精确定位某个特定 Key 的渠道，特别是在 voapi 实例中。
+  # 如果提供此过滤器，其他包含性和排除性筛选器通常可以留空或不启用。
+  # key_filter: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # 示例：替换为实际的 API Key
+
   # --- 排除性筛选器 ---
   # 如果渠道满足以下任何一个排除器中的 *任何一个* 条件，则该渠道将被 *直接排除*，即使它满足包含性筛选器。
 

@@ -168,6 +168,11 @@ def setup_arg_parser():
         action="store_true",
         help="测试自动禁用的渠道并尝试启用它们 (需要指定 --connection-config)。"
     )
+    mode_action.add_argument(
+        "--find-key",
+        metavar="<API_KEY_TO_FIND>",
+        help="查找指定 API Key 所在的渠道并打印其信息 (需要指定 --connection-config)。"
+    )
     # --- 更新/撤销共享参数 ---
     shared_group = parser.add_argument_group('单站点目标')
     shared_group.add_argument(
@@ -223,10 +228,23 @@ async def main_cli_entry(args):
 
 
     # --- 1. 确定操作模式 ---
-    is_interactive_mode = not args.update and not args.undo and not args.test_and_enable_disabled
+    is_interactive_mode = not args.update and not args.undo and not args.test_and_enable_disabled and not args.find_key
 
-    if not is_interactive_mode:
-        operation_mode = 'single_site'
+    if args.find_key:
+        operation_mode = 'find_key'
+        action_flag = "--find-key"
+        logging.info(f"通过命令行参数 ({action_flag}) 选择查找 API Key 模式。")
+        if not args.connection_config:
+            print(f"错误：使用 {action_flag} 时必须通过 --connection-config 指定目标配置文件。")
+            logging.error(f"命令行模式 ({action_flag}) 下未指定 --connection-config。")
+            return 1
+        connection_config_path = Path(args.connection_config)
+        if not connection_config_path.is_file():
+            print(f"错误：指定的连接配置文件不存在: {args.connection_config}")
+            logging.error(f"指定的连接配置文件不存在: {args.connection_config}")
+            return 1
+    elif not is_interactive_mode: # Other non-interactive modes
+        operation_mode = 'single_site' # Default to single_site for update/undo/test_and_enable
         action_flag = ""
         if args.update: action_flag = "--update"
         elif args.undo: action_flag = "--undo"
@@ -242,7 +260,7 @@ async def main_cli_entry(args):
              print(f"错误：指定的连接配置文件不存在: {args.connection_config}")
              logging.error(f"指定的连接配置文件不存在: {args.connection_config}")
              return 1
-    else:
+    else: # Interactive mode
         # 纯交互模式，询问用户
         print("\n请选择要执行的操作模式:")
         while True:
@@ -311,7 +329,8 @@ async def main_cli_entry(args):
             action_to_perform = 'undo'
         elif args.test_and_enable_disabled:
             action_to_perform = 'test_and_enable'
-        elif is_interactive_mode: # 纯交互模式下的菜单
+        # find_key mode is handled separately below, not in this interactive menu for single_site
+        elif is_interactive_mode and operation_mode == 'single_site': # 纯交互模式下的菜单 (仅对 single_site)
             config_name = Path(connection_config_path_str).stem
             latest_undo_file = find_latest_undo_file_for(config_name, api_type) # find_latest_undo_file_for 在 undo_utils
 
@@ -359,38 +378,54 @@ async def main_cli_entry(args):
                     print(f"错误：获取渠道列表失败。详情请查看日志。")
                     final_exit_code = 1
                 else:
-                    # --- 自定义查询字段 ---
+                    # --- 加载查询配置 (包含筛选和显示字段) ---
                     query_config = load_yaml_config(QUERY_CONFIG_PATH)
+                    
+                    # --- 应用 query_config 中的筛选条件 (如果存在) ---
+                    processed_channel_list = channel_list
+                    if query_config and isinstance(query_config.get('filters'), dict) and query_config['filters']:
+                        query_filters = query_config['filters']
+                        logging.info(f"从 {QUERY_CONFIG_PATH.name} 加载查询筛选条件: {query_filters}")
+                        print(f"提示：将使用 {QUERY_CONFIG_PATH.name} 中定义的筛选条件进行查询。")
+                        # filter_channels 是 tool_instance 的一个方法
+                        processed_channel_list = tool_instance.filter_channels(channel_list, query_filters)
+                        if not processed_channel_list:
+                             logging.warning(f"根据 {QUERY_CONFIG_PATH.name} 中的筛选条件，未匹配到任何渠道。")
+                             print(f"根据 {QUERY_CONFIG_PATH.name} 中的筛选条件，未匹配到任何渠道。")
+                             # 仍然继续，但会显示0个渠道
+                    else:
+                        logging.info(f"{QUERY_CONFIG_PATH.name} 中未定义筛选条件或 filters 为空，将显示所有获取到的渠道。")
+
+                    # --- 获取要显示的字段 ---
                     default_query_fields = ['id', 'name'] # 更改默认查询字段为 id 和 name
                     query_fields = []
                     if query_config and isinstance(query_config.get('query_fields'), list):
                         query_fields = query_config['query_fields']
-                        logging.info(f"从 {QUERY_CONFIG_PATH.name} 加载查询字段: {query_fields}")
+                        logging.info(f"从 {QUERY_CONFIG_PATH.name} 加载查询显示字段: {query_fields}")
                     else:
                         query_fields = default_query_fields
                         logging.warning(f"{QUERY_CONFIG_PATH.name} 未找到或 'query_fields' 无效/缺失，"
-                                        f"将使用默认查询字段: {query_fields}")
-                        print(f"提示：未找到或配置无效 ({QUERY_CONFIG_PATH.name})，将显示默认字段。")
-
+                                        f"将使用默认显示字段: {query_fields}")
+                        if not (query_config and isinstance(query_config.get('filters'), dict) and query_config['filters']): # 仅在没有筛选器时提示
+                             print(f"提示：未找到或显示字段配置无效 ({QUERY_CONFIG_PATH.name})，将显示默认字段。")
+                    
                     if not query_fields: # 确保至少有默认字段
                         query_fields = default_query_fields
-                        logging.warning("查询字段列表为空，强制使用默认字段。")
+                        logging.warning("查询显示字段列表为空，强制使用默认字段。")
 
-
-                    print(f"\n成功获取 {len(channel_list)} 个渠道 (按 ID 排序)，显示字段: {', '.join(query_fields)}")
+                    print(f"\n查询到 {len(processed_channel_list)} 个渠道 (按 ID 排序)，显示字段: {', '.join(query_fields)}")
                     # 按 ID 排序 (将非数字 ID 排在后面)
-                    channel_list.sort(key=lambda c: c.get('id') if isinstance(c.get('id'), int) else float('inf'))
+                    processed_channel_list.sort(key=lambda c: c.get('id') if isinstance(c.get('id'), int) else float('inf'))
 
                     # 准备表头和分隔线
-                    header = " | ".join([f"{field}" for field in query_fields]) # 动态生成表头，不固定宽度
-                    # separator = "-+-".join(["-" * 25 for _ in query_fields]) # 移除固定宽度的分隔线
-                    separator = "-" * (len(header) + (len(query_fields) -1) * 3) # 根据表头动态计算分隔线长度
+                    header = " | ".join([f"{field}" for field in query_fields])
+                    separator = "-" * (len(header) + (len(query_fields) -1) * 3)
 
                     print(header)
                     print(separator)
 
                     # 打印每个渠道的指定字段
-                    for channel in channel_list:
+                    for channel in processed_channel_list:
                         row_data = []
                         for field in query_fields:
                             value = channel.get(field, 'N/A') # 获取字段值，不存在则为 N/A
@@ -432,6 +467,59 @@ async def main_cli_entry(args):
              if action_to_perform is None and final_exit_code == 0: # 仅在明确退出且无错误时打印取消
                  print("操作已取消或不支持。")
              final_exit_code = 0 # 保证正常退出
+    
+    elif operation_mode == 'find_key':
+        logging.info("进入查找 API Key 流程...")
+        key_to_find = args.find_key
+        connection_config_path_str = args.connection_config # Already validated
+
+        try:
+            api_config = load_yaml_config(connection_config_path_str)
+            if not api_config:
+                 print(f"错误：无法加载连接配置文件 '{Path(connection_config_path_str).name}'。")
+                 return 1
+            api_type = api_config.get('api_type')
+            if not api_type or api_type not in ["newapi", "voapi"]:
+                logging.error(f"错误：连接配置文件 '{connection_config_path_str}' 中缺少有效 'api_type' ('newapi' 或 'voapi')。")
+                print(f"错误：连接配置文件 '{Path(connection_config_path_str).name}' 中缺少有效 'api_type'。")
+                return 1
+            logging.info(f"从配置 '{Path(connection_config_path_str).name}' 加载 API 类型: {api_type} 用于查找 Key。")
+        except Exception as e:
+            logging.error(f"加载连接配置 '{connection_config_path_str}' 以获取 API 类型时出错: {e}", exc_info=True)
+            print(f"错误：无法从 '{Path(connection_config_path_str).name}' 加载 API 类型。请检查文件和日志。")
+            return 1
+
+        print(f"\n--- 正在实例 '{Path(connection_config_path_str).name}' ({api_type}) 中查找 API Key: '{key_to_find}' ---")
+        tool_instance = _get_tool_instance(api_type, connection_config_path_str, None, script_config=script_config)
+        if not tool_instance:
+            final_exit_code = 1
+        else:
+            channel_list, msg = await tool_instance.get_all_channels()
+            if channel_list is None:
+                logging.error(f"获取渠道列表失败: {msg}")
+                print(f"错误：获取渠道列表失败。详情请查看日志。")
+                final_exit_code = 1
+            else:
+                found_channels = []
+                for channel in channel_list:
+                    # 优先检查 'key' 字段，然后是 'apikey'
+                    channel_key = channel.get('key')
+                    if channel_key is None: # 如果 'key' 不存在或为 None，尝试 'apikey'
+                        channel_key = channel.get('apikey')
+
+                    if channel_key == key_to_find:
+                        found_channels.append(channel)
+                
+                if found_channels:
+                    print(f"\n找到 {len(found_channels)} 个渠道的 API Key匹配 '{key_to_find}':")
+                    for idx, channel_data in enumerate(found_channels):
+                        print(f"\n--- 匹配渠道 #{idx + 1} ---")
+                        print(json.dumps(channel_data, indent=2, ensure_ascii=False))
+                    final_exit_code = 0
+                else:
+                    print(f"\n在实例 '{Path(connection_config_path_str).name}' 中未找到 API Key 为 '{key_to_find}' 的渠道。")
+                    final_exit_code = 0 # 未找到不算错误
+        logging.info(f"查找 API Key 操作完成，退出码: {final_exit_code}")
 
     # --- 替换跨站点逻辑 ---
     elif operation_mode == 'cross_site':

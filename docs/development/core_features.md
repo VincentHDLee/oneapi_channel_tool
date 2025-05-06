@@ -131,7 +131,7 @@
 *   **(待办) 增强跨站点 `copy_fields` 详细实现逻辑:**
 
             1.  **配置文件 (`cross_site_config.yaml`) 调整**:
-                *   修改 `source.channel_filter` 和 `target.channel_filter` 结构，使其能够接受与 `update_config.yaml` 中 `filters` 部分完全相同的结构。这意味着可以包含 `name_filters`, `group_filters`, `model_filters`, `exclude_name_filters` 等所有筛选器，以及 `match_mode`。这将取代之前要求精确匹配唯一渠道的限制。
+                *   修改 `source.channel_filter` 和 `target.channel_filter` 结构，使其能够接受与 `update_config.yaml` 中 `filters` 部分完全相同的结构。这意味着可以包含 `id`, `key_filter` (用于精确 API Key 匹配), `name_filters`, `group_filters`, `model_filters`, `exclude_name_filters` 等所有筛选器，以及 `match_mode`。这将取代之前要求精确匹配唯一渠道的限制。
                 *   保留 `action: "copy_fields"` 和 `copy_fields_params` (`fields_to_copy`, `copy_mode`) 不变。
 
             2.  **核心处理逻辑 (`cross_site_handler.py` 中的 `run_cross_site_operation`)**:

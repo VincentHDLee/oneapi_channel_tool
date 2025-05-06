@@ -18,7 +18,16 @@ query_fields:
 # (可选) 筛选条件，结构与 update_config.yaml 类似。
 # 可用于在查询时预先过滤渠道。如果未指定，则查询所有渠道。
 # filters:
-#   name_filters: ["OpenAI"]
-#   exclude_name_filters: ["Azure"]
-#   # ... 其他筛选器 ...
+#   # 通过渠道名称筛选 (部分匹配)
+#   name_filters: ["My Specific Channel", "Another"]
+#   # 通过渠道分组筛选
+#   group_filters: ["default", "vip"]
+#   # 通过渠道支持的模型筛选
+#   model_filters: ["gpt-4", "claude-3"]
+#   # 通过 API Key 精确筛选 (主要用于 voapi 实例)
+#   # key_filter: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#   # 排除特定名称的渠道
+#   exclude_name_filters: ["Test Channel", "Azure"]
+#   # ... 其他筛选器，例如 tag_filters, type_filters ...
+#   # 匹配模式: "any" (满足任一筛选器) 或 "all" (满足所有启用的筛选器)
 #   match_mode: "any"

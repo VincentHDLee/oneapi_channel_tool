@@ -163,7 +163,15 @@ class ChannelToolBase(abc.ABC):
         """
         pass
 
-    # 移除的方法: filter_channels, _validate_match_mode, _match_filter, _channel_matches_filters,
+    def filter_channels(self, channel_list: list, filters_config: dict | None = None) -> list:
+        """
+        根据提供的筛选器配置过滤渠道列表。
+        这是一个便利方法，用于调用 filtering_utils 中的 filter_channels 函数。
+        """
+        # 直接调用导入的 filter_channels 函数
+        return filter_channels(channel_list, filters_config)
+
+    # 移除的方法: _validate_match_mode, _match_filter, _channel_matches_filters,
     #           _normalize_to_set, _normalize_to_dict
 
     def _prepare_update_payload(self, original_channel_data):
