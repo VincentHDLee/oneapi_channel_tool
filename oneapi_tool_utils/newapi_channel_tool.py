@@ -298,6 +298,96 @@ class NewApiChannelTool(ChannelToolBase):
         logging.debug(f"格式化字段 '{field_name}' 的最终值 (类型: {type(value).__name__}): {repr(value)}")
         return value
 
+    async def test_channel_api(self, channel_id: int, model_name: str) -> tuple[bool, str, str | None]:
+        """
+        使用指定的模型测试单个渠道 (NewAPI 特定实现)。
+
+        Args:
+            channel_id (int): 要测试的渠道的 ID。
+            model_name (str): 用于测试的模型名称。
+
+        Returns:
+            tuple[bool, str, str | None]: (测试是否通过, 描述信息, 失败类型)
+        """
+        failure_type = None
+        channel_name_for_log = f"ID:{channel_id}" # 尝试获取名称，如果失败则用 ID
+        try:
+            # 尝试从缓存或一次性获取中获取名称，如果实现允许
+            # 否则，在日志中仅使用 ID
+            pass # Placeholder for potential name fetching optimization
+        except:
+            pass
+
+        api_settings = self.script_config.get('api_settings', {})
+        request_timeout_seconds = api_settings.get('request_timeout', 60)
+        request_interval_ms = api_settings.get('request_interval_ms', 0)
+
+        test_url = f"{self.site_url.rstrip('/')}/api/channel/test/{channel_id}"
+        params = {'model': model_name}
+        headers = {
+            'Authorization': f'Bearer {self.api_token}',
+            'Accept': 'application/json',
+            'New-Api-User': str(self.user_id)
+        }
+        timeout = aiohttp.ClientTimeout(total=request_timeout_seconds)
+
+        logging.debug(f"准备测试渠道 {channel_name_for_log}，URL: {test_url}，模型: {model_name}, 超时: {request_timeout_seconds}s")
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                if request_interval_ms > 0:
+                    interval_seconds = request_interval_ms / 1000.0
+                    logging.debug(f"等待 {interval_seconds:.3f} 秒后为渠道 {channel_name_for_log} 发送测试请求 (间隔: {request_interval_ms}ms)")
+                    await asyncio.sleep(interval_seconds)
+
+                async with session.get(test_url, headers=headers, params=params, timeout=timeout) as response:
+                    status_code = response.status
+                    response_text_preview = await response.text()
+                    logging.debug(f"测试渠道 {channel_name_for_log} - 状态码: {status_code}, 响应预览: {response_text_preview[:500]}...")
+
+                    if status_code == 200:
+                        try:
+                            response_json = json.loads(response_text_preview)
+                            if response_json.get('success') is True:
+                                success_message = response_json.get('message', "测试成功")
+                                logging.info(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 通过: {success_message}")
+                                return True, success_message, None
+                            else:
+                                error_message = response_json.get('message', '测试未通过，无详细信息')
+                                if "quota" in error_message.lower() or "insufficient quota" in error_message.lower():
+                                    failure_type = 'quota'
+                                else:
+                                    failure_type = 'api_error'
+                                logging.warning(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 未通过: {error_message}")
+                                return False, f"测试未通过: {error_message}", failure_type
+                        except json.JSONDecodeError as e:
+                            logging.error(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 响应状态码 200 但 JSON 解析失败: {e}.")
+                            return False, f"测试失败: 无法解析成功的响应 ({e})", 'response_format'
+                    else:
+                        error_message_detail = f"API 返回状态码 {status_code}"
+                        try:
+                            error_json = json.loads(response_text_preview)
+                            if 'message' in error_json: error_message_detail += f" ({error_json['message']})"
+                        except json.JSONDecodeError: pass
+                        
+                        if status_code == 401: failure_type = 'auth'
+                        elif status_code == 429: failure_type = 'quota'
+                        elif status_code >= 400 and status_code < 500: failure_type = 'api_error'
+                        elif status_code >= 500: failure_type = 'server_error'
+                        else: failure_type = 'unknown_http'
+                        logging.error(f"测试渠道 {channel_name_for_log} (模型: {model_name}) API 请求失败: {error_message_detail}")
+                        return False, f"测试失败: {error_message_detail}", failure_type
+
+        except asyncio.TimeoutError:
+            logging.error(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 超时。")
+            return False, "测试失败: 请求超时", 'timeout'
+        except aiohttp.ClientError as e:
+            logging.error(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 时发生客户端错误: {e}")
+            return False, f"测试失败: 网络或客户端错误 ({e})", 'network'
+        except Exception as e:
+            logging.exception(f"测试渠道 {channel_name_for_log} (模型: {model_name}) 时发生未知异常。")
+            return False, f"测试失败: 未知错误 ({type(e).__name__})", 'exception'
+
 # --- main 函数（示例，实际由 main_tool.py 调用） ---
 # async def main(api_config_path, update_config_path, dry_run=False):
 #     """主函数 (newapi 特定实现)，实例化 NewApiChannelTool 并运行更新"""

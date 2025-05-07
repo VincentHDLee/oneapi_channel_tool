@@ -1,0 +1,50 @@
+# channel_model_test_config.clean.yaml
+# “测试指定模型的渠道”功能的干净模板配置文件。
+# 成功执行后，可以将活动的测试配置文件恢复为此状态。
+# 请取消注释并填写必要的值。
+
+# (在通过命令行参数 --test-channel-model 模式下必需；
+#  在交互式菜单模式下，此字段将被忽略，程序会使用菜单中选择的连接配置)
+# target_connection_config: "connection_configs/your_instance.yaml"
+
+# (必需) 筛选条件: 用于选择要执行测试操作的目标渠道。
+filters:
+  # --- 筛选器示例 (请取消注释并根据需要修改) ---
+  # 精确匹配渠道 ID:
+  # id: 123
+
+  # 按名称部分匹配 (区分大小写):
+  # name_filters:
+  #   - "FreeChannel"
+  #   - "BackupProvider"
+  
+  # 按分组精确匹配:
+  # group_filters:
+  #   - "default"
+  #   - "experimental"
+
+  # 按包含的模型部分匹配 (渠道的 models 字段中包含任一指定模型即可):
+  # model_filters:
+  #   - "gpt-4"
+  #   - "claude-2"
+
+  # 排除名称部分匹配:
+  # exclude_name_filters:
+  #   - "Deprecated"
+
+  # (必需) 筛选逻辑模式: "any" 或 "all"。
+  # "any": 渠道满足任一启用的包含性筛选器 (id, name_filters, group_filters, model_filters) 即可。
+  # "all": 渠道必须满足所有启用的包含性筛选器。
+  # 排除性筛选器 (exclude_name_filters) 总是会排除匹配项。
+  # match_mode: "any"
+
+# (必需) 测试参数
+test_parameters:
+  # (必需) 字符串，指定要对筛选出的渠道进行测试的模型名称。
+  # model_to_test: "your_model_to_test_here"
+
+  # (可选) 布尔值。如果为 true，则只报告测试失败的渠道。
+  # report_failed_only: false
+
+  # (可选) 布尔值。如果为 false，则在第一个渠道测试失败后立即停止后续测试。
+  # continue_on_failure: true

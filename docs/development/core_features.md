@@ -190,3 +190,46 @@
     *   *触发方式:* 命令行 `--test-models --channel-id <ID>` 或交互模式选项。
     *   *流程:* 获取渠道模型列表 -> 对每个模型调用标准测试端点 -> 报告结果 -> 可选移除失败模型。
     *   *依赖:* 渠道获取、更新、撤销逻辑。
+## 9. 测试指定模型的渠道 (Test Channels with Specific Model)
+
+*(已完成)* **(D1, I1)**
+
+*   **目标:** 允许用户根据灵活的筛选条件选择一组渠道，并使用这些渠道测试一个用户指定的模型。脚本将报告每个渠道的测试结果，特别关注失败的渠道和原因。
+*   **背景:** 在添加新模型、评估渠道对特定模型的支持情况或排查特定模型故障时非常有用。与现有的“测试并启用禁用渠道”功能不同，此功能不以渠道状态为主要筛选条件，也不执行启用操作，而是专注于对任意筛选出的渠道集进行特定模型的可用性测试。
+*   **触发方式:**
+    *   通过新的命令行参数，例如 `--test-model-on-channels`。
+    *   (可选) 交互模式下的新选项。
+*   **配置文件:**
+    *   需要一个新的配置文件，例如 `test_specific_model_config.yaml` (或 `channel_model_test_config.yaml`)，其结构将包含：
+        *   `target_connection_config`: (在通过命令行参数 `--test-channel-model` 模式下必需；在交互式菜单模式下，此字段将被忽略，程序会使用菜单中选择的连接配置) 字符串，指向 `connection_configs/` 目录下的目标 One API 实例的连接配置文件路径 (例如 `connection_configs/my_instance.yaml`)。
+        *   `filters`: (必需) 与 `update_config.yaml` 中 `filters` 部分结构完全相同的筛选器，用于选择要测试的渠道。
+        *   `test_parameters`: (必需)
+            *   `model_to_test`: (必需) 字符串，指定要对筛选出的渠道进行测试的模型名称 (例如 `"gemini-1.5-flash-latest"`)。
+            *   (可选) `report_failed_only`: 布尔值，默认为 `false`。如果为 `true`，则只报告测试失败的渠道。
+            *   (可选) `continue_on_failure`: 布尔值，默认为 `true`。如果为 `false`，则在第一个渠道测试失败后停止。
+*   **核心流程:**
+    1.  加载指定的 `--connection-config` (或通过 `test_specific_model_config.yaml` 内部指定的)。
+    2.  加载 `test_specific_model_config.yaml` (如果通过命令行参数指定了此配置文件)。
+    3.  使用 `filters` 筛选出目标渠道。
+    4.  对每个筛选出的渠道，使用 `test_parameters.model_to_test` 指定的模型，调用 One API 的测试端点 (`/api/channel/test/{id}?model=...` 或 `/api/v1/channel/test/{id}?model=...`，取决于 `api_type`) 发送测试请求。
+    5.  并发执行测试，并发数和超时时间遵循 `script_config.yaml`。
+    6.  收集所有测试结果。
+    7.  **报告结果:**
+        *   清晰地列出每个被测试渠道的 ID、名称。
+        *   报告该渠道对 `model_to_test` 的测试结果（成功/失败）。
+        *   如果测试失败，详细打印从 API 返回的错误信息。
+        *   (可选) 提供一个最终的摘要，例如测试了 X 个渠道，Y 个成功，Z 个失败。
+*   **配置文件清理:**
+    *   操作成功结束后，如果未使用 `-y` (自动确认) 参数，脚本会询问用户是否将使用的测试配置文件恢复到干净状态 (使用 `oneapi_tool_utils/channel_model_test_config.clean.yaml` 模板)。
+    *   可以通过命令行参数 `--clear-test-model-config` 强制在成功后清理配置文件，即使使用了 `-y`。
+*   **不执行的操作:**
+    *   此功能**不**会修改任何渠道的状态（例如启用或禁用）。
+    *   此功能**不**会生成撤销文件，因为它不进行任何修改操作。
+*   **依赖:**
+    *   渠道筛选逻辑 (`filtering_utils.py`)。
+    *   API 通信层 (`NewApiChannelTool`/`VoApiChannelTool` 中的 `test_channel` 方法或类似方法)。
+    *   配置加载逻辑。
+    *   并发处理框架。
+*   **示例场景:**
+    *   管理员想要验证所有分组为 "premium" 且名称包含 "Claude" 的渠道是否都能成功调用 "claude-3-opus-20240229" 模型。
+    *   在京东云开发服务器的 newapi 实例对所有名称为 “FreeGemini” 的渠道测试模型 “gemini-1.5-flash-8b-latest”，在有渠道测试失败时打印测试失败的渠道的信息和返回的错误。

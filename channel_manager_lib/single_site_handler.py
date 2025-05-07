@@ -20,7 +20,8 @@ import functools # 导入 functools 用于包装任务
 # 从项目模块导入 (使用包内绝对导入)
 from channel_manager_lib.config_utils import (
     UPDATE_CONFIG_PATH, UPDATE_CONFIG_BACKUP_DIR, CLEAN_UPDATE_CONFIG_TEMPLATE_PATH,
-    load_script_config # 导入脚本配置加载函数
+    load_script_config, load_yaml_config, # 导入脚本配置加载函数 和 YAML 加载函数
+    # CLEAN_CHANNEL_MODEL_TEST_CONFIG_TEMPLATE_PATH, # 将在 config_utils.py 中定义后取消注释
 )
 from channel_manager_lib.undo_utils import save_undo_data, _get_tool_instance # 导入撤销保存和工具实例化
 # ask_and_clear_update_config 已移至此模块，不再需要从 cli_handler 导入
@@ -29,9 +30,14 @@ from channel_manager_lib.undo_utils import save_undo_data, _get_tool_instance # 
 # from oneapi_tool_utils.newapi_channel_tool import NewApiChannelTool
 # from oneapi_tool_utils.voapi_channel_tool import VoApiChannelTool
 
+# 临时的，之后会移到 config_utils.py
+# 假设它在 oneapi_tool_utils 目录下
+ONEAPI_TOOL_UTILS_DIR = Path(__file__).parent.parent / "oneapi_tool_utils"
+CLEAN_CHANNEL_MODEL_TEST_CONFIG_TEMPLATE_PATH_TEMP = ONEAPI_TOOL_UTILS_DIR / "channel_model_test_config.clean.yaml"
+
 
 def ask_and_clear_update_config(force_clear=False, auto_confirm=False):
-    """询问用户是否清空 update_config.yaml 并执行 (使用 update_config.example 模板)。"""
+    """询问用户是否清空 update_config.yaml 并执行 (使用 update_config.clean.json 模板)。"""
     # 使用已在顶部导入的常量
     source_clean_path = CLEAN_UPDATE_CONFIG_TEMPLATE_PATH
     target_path = UPDATE_CONFIG_PATH
@@ -91,6 +97,79 @@ def ask_and_clear_update_config(force_clear=False, auto_confirm=False):
         except Exception as e:
             logging.error(f"使用 '{source_clean_path.name}' 覆盖 '{target_path.name}' 时出错: {e}")
             print("恢复失败，请检查错误日志。")
+
+
+def ask_and_clear_channel_model_test_config(target_test_config_path: Path, force_clear: bool, auto_confirm: bool):
+    """
+    询问用户是否清空指定的测试模型配置文件，并使用干净模板恢复它。
+    行为类似于 ask_and_clear_update_config。
+
+    Args:
+        target_test_config_path (Path): 要清理的目标测试配置文件的路径。
+        force_clear (bool): 是否由命令行参数强制要求清理 (例如来自 --clear-test-model-config)。
+        auto_confirm (bool): 是否是自动确认模式 (例如来自 -y)。
+    """
+    source_clean_path = CLEAN_CHANNEL_MODEL_TEST_CONFIG_TEMPLATE_PATH_TEMP # 使用临时定义的路径
+    
+    if not source_clean_path.is_file():
+        logging.warning(f"警告：干净的测试模型配置文件模板 '{source_clean_path}' 不存在，无法执行清空操作。")
+        return
+
+    if not target_test_config_path.is_file():
+        logging.warning(f"目标测试配置文件 '{target_test_config_path}' 不存在，无法清理。")
+        return
+
+    do_clear = False
+    if force_clear: # 例如 --clear-test-model-config 被设置
+        if auto_confirm: # 例如 -y 也被设置
+            logging.info(f"自动确认模式且强制清理：将使用模板恢复 '{target_test_config_path.name}'。")
+            do_clear = True
+        else: # 不是 -y，但指定了清理，需要询问
+            while True:
+                try:
+                    choice = input(f"\n命令行指定了清理测试配置，确认要将 '{target_test_config_path.name}' 恢复为干净状态吗？ (y/n): ").lower()
+                    if choice == 'y':
+                        do_clear = True
+                        break
+                    elif choice == 'n':
+                        print(f"取消清空 '{target_test_config_path.name}'。")
+                        break
+                    else:
+                        print("无效输入，请输入 'y' 或 'n'。")
+                except EOFError:
+                    print("\n操作已取消。")
+                    break
+    elif auto_confirm: # 是 -y，但没有强制清理参数
+        logging.info(f"自动确认模式：保留当前的 '{target_test_config_path.name}'。")
+        do_clear = False # 默认不清理
+    else: # 非 -y，且没有强制清理参数，正常询问
+        while True:
+            try:
+                choice = input(f"\n是否要将测试配置文件 '{target_test_config_path.name}' 恢复为干净状态 (使用模板)？ (y/n): ").lower()
+                if choice == 'y':
+                    do_clear = True
+                    break
+                elif choice == 'n':
+                    logging.info(f"用户选择不清空 '{target_test_config_path.name}'。")
+                    print(f"保留当前的 '{target_test_config_path.name}'。")
+                    break
+                else:
+                    print("无效输入，请输入 'y' 或 'n'。")
+            except EOFError:
+                print("\n操作已取消。")
+                break
+    
+    if do_clear:
+        try:
+            with open(source_clean_path, 'r', encoding='utf-8') as f_src:
+                clean_content = f_src.read()
+            with open(target_test_config_path, 'w', encoding='utf-8') as f_target:
+                f_target.write(clean_content)
+            logging.info(f"已使用模板 '{source_clean_path.name}' 的内容覆盖 '{target_test_config_path.name}'。")
+            print(f"测试配置文件 '{target_test_config_path.name}' 已恢复为默认干净状态。")
+        except Exception as e:
+            logging.error(f"使用模板 '{source_clean_path.name}' 覆盖 '{target_test_config_path.name}' 时出错: {e}")
+            print(f"恢复测试配置文件 '{target_test_config_path.name}' 失败，请检查错误日志。")
 
 
 def backup_update_config():
@@ -674,3 +753,303 @@ async def _test_single_channel(session: aiohttp.ClientSession, tool_instance, ch
     except Exception as e:
         logging.exception(f"测试渠道 {channel_name} (ID: {channel_id}) 时发生未知异常。")
         return False, f"测试失败: 未知错误 ({type(e).__name__})", 'exception'
+
+
+async def run_test_model_on_channels(
+    args,
+    script_config: dict,
+    test_config_file_path_str: str,
+    explicitly_selected_conn_config_path: str | Path | None = None
+) -> int:
+    """
+    根据指定配置文件测试筛选出的渠道对特定模型的支持情况。
+    如果 explicitly_selected_conn_config_path 不为 None (交互模式), 则使用它。
+    否则 (命令行 --test-channel-model), 从测试配置文件中读取 target_connection_config。
+
+    Args:
+        args: 解析后的命令行参数对象 (需要包含 .yes)。
+        script_config (dict): 已加载的脚本通用配置。
+        test_config_file_path_str (str): 测试配置文件的路径。
+
+    Returns:
+        int: 退出码 (0 表示成功或无操作, 1 表示失败)。
+    """
+    exit_code = 0
+    logging.info(f"开始执行 '测试指定模型渠道' 操作，测试配置文件: {test_config_file_path_str}")
+    print(f"\n--- 开始测试指定模型渠道 (配置文件: {Path(test_config_file_path_str).name}) ---")
+
+    # 1. 加载测试配置文件
+    test_config_path = Path(test_config_file_path_str)
+    if not test_config_path.is_file(): # Double check, though CLI handler should have caught this
+        logging.error(f"错误：测试配置文件 '{test_config_path}' 不存在。")
+        print(f"错误：测试配置文件 '{test_config_path.name}' 不存在。")
+        return 1
+
+    try:
+        test_config = load_yaml_config(test_config_path)
+        if not test_config:
+            raise yaml.YAMLError(f"测试配置文件 '{test_config_path.name}' 内容为空或无效。")
+
+        # --- 确定最终的连接配置文件路径 ---
+        final_connection_config_path_str : str | None = None
+        
+        if explicitly_selected_conn_config_path:
+            # 交互模式: 使用用户通过菜单选择的连接配置
+            final_connection_config_path_str = str(explicitly_selected_conn_config_path)
+            logging.info(f"交互模式：使用用户选择的连接配置: {final_connection_config_path_str}")
+            if not Path(final_connection_config_path_str).is_file():
+                 raise FileNotFoundError(f"交互模式下选定的连接配置文件 '{final_connection_config_path_str}' 未找到。")
+            # 在此模式下，测试配置文件中的 target_connection_config (如果存在) 将被忽略。
+            if test_config.get('target_connection_config'):
+                logging.debug(f"测试配置文件中的 'target_connection_config' ('{test_config.get('target_connection_config')}') 在交互模式下被忽略。")
+        else:
+            # 命令行模式: 必须从测试配置文件中获取 target_connection_config
+            target_conn_config_from_file_str = test_config.get('target_connection_config')
+            if not target_conn_config_from_file_str or not isinstance(target_conn_config_from_file_str, str):
+                raise ValueError("命令行模式下，测试配置文件中 'target_connection_config' 缺失或不是有效字符串。")
+            
+            temp_path = Path(target_conn_config_from_file_str)
+            if not temp_path.is_file():
+                if not temp_path.is_absolute(): # 尝试解析为相对于项目根目录
+                    project_root = Path(__file__).parent.parent
+                    absolute_target_path = project_root / target_conn_config_from_file_str
+                    if absolute_target_path.is_file():
+                        final_connection_config_path_str = str(absolute_target_path)
+                        logging.info(f"测试配置文件中相对路径 '{target_conn_config_from_file_str}' 解析为: {final_connection_config_path_str}")
+                    else:
+                        raise FileNotFoundError(f"测试配置文件中的 'target_connection_config' 指向的文件 '{target_conn_config_from_file_str}' (或其绝对路径 '{absolute_target_path}') 未找到。")
+                else: # 是绝对路径但文件不存在
+                    raise FileNotFoundError(f"测试配置文件中的 'target_connection_config' 指向的文件 (绝对路径) '{target_conn_config_from_file_str}' 未找到。")
+            else: # 路径有效且文件存在
+                final_connection_config_path_str = str(temp_path)
+            logging.info(f"命令行模式：使用测试配置文件中指定的连接配置: {final_connection_config_path_str}")
+
+        # 验证其他必需字段
+        filters_config = test_config.get('filters')
+        test_params = test_config.get('test_parameters')
+
+        if not filters_config or not isinstance(filters_config, dict):
+            raise ValueError("测试配置文件中 'filters' 缺失或不是一个字典。")
+        if not test_params or not isinstance(test_params, dict):
+            raise ValueError("测试配置文件中 'test_parameters' 缺失或不是一个字典。")
+        
+        model_to_test = test_params.get('model_to_test')
+        if not model_to_test or not isinstance(model_to_test, str):
+            raise ValueError("测试配置文件中 'test_parameters.model_to_test' 缺失或不是字符串。")
+        
+        report_failed_only = test_params.get('report_failed_only', False)
+        continue_on_failure = test_params.get('continue_on_failure', True)
+
+    except (FileNotFoundError, yaml.YAMLError, ValueError) as e: # 合并异常捕获
+        logging.error(f"加载或解析测试配置文件 '{test_config_path.name}' 或其引用的连接配置时出错: {e}", exc_info=True)
+        print(f"错误：加载或解析测试配置文件 '{test_config_path.name}' 或其引用的连接配置失败: {e}")
+        return 1
+    except Exception as e: # 通用异常捕获
+        logging.error(f"加载测试配置文件时发生未知错误: {e}", exc_info=True)
+        print(f"错误: 加载测试配置文件时发生未知错误。请查看日志。")
+        return 1
+    
+    # 使用 final_connection_config_path_str 来记录日志
+    logging.info(f"测试配置加载成功。将使用连接配置: {Path(final_connection_config_path_str).name}, 测试模型: {model_to_test}")
+
+    # 2. 加载目标连接配置并获取 API 类型 (使用 final_connection_config_path_str)
+    try:
+        api_config = load_yaml_config(final_connection_config_path_str) # 使用最终确定的路径
+        if not api_config:
+             raise ValueError(f"最终确定的连接配置文件 '{Path(final_connection_config_path_str).name}' 加载失败或为空。")
+        api_type = api_config.get('api_type')
+        if not api_type or api_type not in ["newapi", "voapi"]:
+            raise ValueError(f"连接配置文件 '{Path(final_connection_config_path_str).name}' 中缺少有效 'api_type' ('newapi' 或 'voapi')。")
+        logging.info(f"从连接配置 '{Path(final_connection_config_path_str).name}' 加载 API 类型: {api_type}")
+    except Exception as e:
+        logging.error(f"加载连接配置 '{Path(final_connection_config_path_str).name}' 时出错: {e}", exc_info=True)
+        print(f"错误：无法从 '{Path(final_connection_config_path_str).name}' 加载 API 类型。请检查文件和日志。")
+        return 1
+
+    # 3. 获取工具实例 (使用 final_connection_config_path_str)
+    tool_instance = _get_tool_instance(api_type, final_connection_config_path_str, None, script_config=script_config)
+    if not tool_instance:
+        # _get_tool_instance 应该已经记录了错误并可能打印了消息
+        return 1
+
+    # 4. 获取所有渠道并筛选
+    logging.info("获取所有渠道列表...")
+    try:
+        channel_list, get_list_message = await tool_instance.get_all_channels()
+        if channel_list is None:
+            print(f"\n错误：获取渠道列表失败。详情请查看日志。\n失败原因: {get_list_message}")
+            return 1
+        
+        filtered_channels = tool_instance.filter_channels(channel_list, filters_config)
+        if not filtered_channels:
+            logging.info("没有匹配测试配置文件中筛选条件的渠道。")
+            print("没有匹配测试配置文件中筛选条件的渠道。")
+            return 0
+        logging.info(f"成功获取并筛选出 {len(filtered_channels)} 个渠道进行测试。")
+        print(f"将对 {len(filtered_channels)} 个匹配筛选条件的渠道测试模型 '{model_to_test}'...")
+
+    except ValueError as e: # 通常是API类型不匹配等配置问题
+        logging.error(f"获取或筛选渠道时发生配置或兼容性错误: {e}")
+        print(f"\n错误：获取或筛选渠道失败。\n原因: {e}")
+        return 1
+    except Exception as e:
+        logging.error(f"获取或筛选渠道时发生未知错误: {e}", exc_info=True)
+        print(f"\n错误：获取或筛选渠道时发生意外错误，请查看日志。")
+        return 1
+
+    # 5. 执行并发测试
+    api_settings = script_config.get('api_settings', {})
+    max_concurrent = api_settings.get('max_concurrent_requests', 5)
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    tested_count = 0
+    passed_count = 0
+    failed_test_count = 0
+    all_test_results_details = [] # 用于存储所有渠道的详细测试结果
+
+    async with aiohttp.ClientSession() as session:
+        logging.info(f"开始并发测试 {len(filtered_channels)} 个渠道 (最大并发: {max_concurrent})...")
+
+        async def test_task_wrapper_for_model(channel_data, specific_model_to_test):
+            async with semaphore:
+                logging.debug(f"开始测试渠道 ID: {channel_data.get('id')} 模型: {specific_model_to_test}")
+                # 调用 _test_single_channel，但需要修改它来接受 specific_model_to_test
+                # 或者创建一个新的 _test_single_channel_with_model
+                # 为简单起见，暂时假设 _test_single_channel_with_model 存在或 _test_single_channel 已调整
+                # 当前的 _test_single_channel 会自行选择模型，不符合这里的需求。
+                # 我们需要一个直接测试指定模型的函数。
+                # 暂时模拟调用，实际需要修改 ChannelToolBase 或其子类
+                
+                # 临时的测试逻辑占位符，实际应该调用类似 tool_instance.test_channel_with_model(channel_id, model_name)
+                # 这里我们直接使用 _test_single_channel，但它的模型选择逻辑不完全匹配，
+                # 它会优先用 channel.test_model。我们需要确保它测试的是 model_to_test。
+                # *** 关键：需要调整测试方法以强制使用 model_to_test ***
+                # 暂时先用现有的，但结果可能不完全准确，除非渠道的 test_model 正好是 model_to_test
+                # 或者修改 _test_single_channel，让它接受一个强制的 model_override 参数
+
+                # 为了演示，我们将直接调用 ChannelTool 的测试方法（假设它被调整或存在）
+                # success, message, failure_type = await tool_instance.test_channel(session, channel_data.get('id'), specific_model_to_test, script_config)
+                
+                # 使用现有的 _test_single_channel，但需要注意其模型选择逻辑。
+                # 更好的方法是 ChannelToolBase 有一个 test_specific_model(channel_id, model_name) 方法。
+                # 我们先用 _test_single_channel 但要意识到其局限性。
+                # 实际上，_test_single_channel 内部有模型选择逻辑，我们需要一个更直接的测试。
+                # 对于这个功能，ChannelTool 应该有一个方法 test_channel_with_specific_model(channel_id, model_name)
+                # 暂时我们先用现有的 test_channel 方法，它在 newapi_channel_tool.py 等实现中
+                # 该方法通常是 self.test_channel_api(channel_id, model_name_to_test)
+                
+                test_success, test_message, test_failure_type = await tool_instance.test_channel_api(
+                    channel_data.get('id'),
+                    specific_model_to_test
+                )
+
+                logging.debug(f"完成测试渠道 ID: {channel_data.get('id')} 模型: {specific_model_to_test}. 结果: {test_success}, {test_message}")
+                return channel_data, test_success, test_message, test_failure_type
+
+        test_tasks = [test_task_wrapper_for_model(channel, model_to_test) for channel in filtered_channels]
+        
+        raw_results = []
+        try:
+            raw_results = await asyncio.gather(*test_tasks, return_exceptions=True)
+        except Exception as e:
+            logging.error(f"执行并发模型测试任务时发生意外错误: {e}", exc_info=True)
+            print(f"错误: 执行并发模型测试时发生未知错误: {e}")
+            # 标记所有任务为失败
+            for i in range(len(filtered_channels)):
+                 channel_info = filtered_channels[i]
+                 all_test_results_details.append({
+                     'id': channel_info.get('id'),
+                     'name': channel_info.get('name', f"ID:{channel_info.get('id')}"),
+                     'model_tested': model_to_test,
+                     'passed': False,
+                     'message': f"测试执行中发生全局错误: {e}",
+                     'failure_type': 'exception'
+                 })
+            failed_test_count = len(filtered_channels)
+
+
+    # 6. 处理测试结果并报告
+    if not raw_results and failed_test_count == len(filtered_channels): # 如果 gather 失败且所有都已标记
+        pass # 错误已记录
+    else:
+        for i, res_item in enumerate(raw_results):
+            tested_count += 1
+            channel_info = filtered_channels[i] # 确保索引对应
+            ch_id = channel_info.get('id')
+            ch_name = channel_info.get('name', f'ID:{ch_id}')
+
+            current_result = {
+                'id': ch_id,
+                'name': ch_name,
+                'model_tested': model_to_test,
+                'passed': False,
+                'message': '未知错误',
+                'failure_type': 'unknown'
+            }
+
+            if isinstance(res_item, Exception):
+                failed_test_count += 1
+                current_result['message'] = f"测试时发生异常: {res_item}"
+                current_result['failure_type'] = 'exception'
+                logging.error(f"测试渠道 {ch_name} (ID: {ch_id}) 模型 {model_to_test} 时发生异常: {res_item}", exc_info=res_item)
+            elif isinstance(res_item, tuple) and len(res_item) == 4:
+                _ch_data_back, success, message, failure_type = res_item # _ch_data_back 可以忽略
+                current_result['passed'] = success
+                current_result['message'] = message
+                current_result['failure_type'] = failure_type
+                if success:
+                    passed_count += 1
+                    logging.info(f"渠道 {ch_name} (ID: {ch_id}) 测试模型 {model_to_test} 通过: {message}")
+                else:
+                    failed_test_count += 1
+                    logging.warning(f"渠道 {ch_name} (ID: {ch_id}) 测试模型 {model_to_test} 未通过: {message} (类型: {failure_type})")
+            else: # 非预期的结果格式
+                failed_test_count += 1
+                current_result['message'] = f"未知或无效的测试结果格式: {res_item}"
+                current_result['failure_type'] = 'unknown_format'
+                logging.error(f"渠道 {ch_name} (ID: {ch_id}) 测试模型 {model_to_test} 返回了未知结果格式: {res_item}")
+            
+            all_test_results_details.append(current_result)
+            
+            if not continue_on_failure and not current_result['passed']:
+                logging.info(f"continue_on_failure is false，在渠道 {ch_name} (ID: {ch_id}) 测试失败后停止。")
+                print(f"停止测试：渠道 {ch_name} (ID: {ch_id}) 对模型 {model_to_test} 测试失败。")
+                break # 退出循环
+
+    print(f"\n--- 模型 '{model_to_test}' 测试报告 ---")
+    print(f"总共测试渠道数: {tested_count}")
+    print(f"测试通过数: {passed_count}")
+    print(f"测试失败数: {failed_test_count}")
+
+    if not all_test_results_details:
+        print("没有详细的测试结果可显示。")
+    else:
+        print("\n详细结果:")
+        for detail in all_test_results_details:
+            if not report_failed_only or (report_failed_only and not detail['passed']):
+                status_icon = "✅" if detail['passed'] else "❌"
+                print(f"  {status_icon} 渠道: {detail['name']} (ID: {detail['id']})")
+                print(f"      模型: {detail['model_tested']}")
+                print(f"      结果: {'通过' if detail['passed'] else '失败'}")
+                print(f"      信息: {detail['message']}")
+                if not detail['passed'] and detail.get('failure_type'):
+                    print(f"      失败类型: {detail['failure_type']}")
+    
+    if failed_test_count > 0 :
+        # 即使 continue_on_failure 为 true，只要有失败也认为整体操作部分失败
+        exit_code = 1
+        print("\n提示: 部分渠道测试失败。")
+    else:
+        exit_code = 0
+    
+    # 根据用户反馈，无论测试成功与否，都尝试提示清理配置文件
+    # (清理函数内部会根据 args.yes 和 args.clear_test_model_config 处理实际行为)
+    should_force_clear_test_config = getattr(args, 'clear_test_model_config', False)
+    ask_and_clear_channel_model_test_config(
+        target_test_config_path=test_config_path, # test_config_path 是在此函数前面定义的 Path 对象
+        force_clear=should_force_clear_test_config,
+        auto_confirm=args.yes
+    )
+
+    print("\n--- 操作完成 ---")
+    return exit_code

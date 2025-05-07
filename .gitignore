@@ -9,6 +9,7 @@ connection_config.example # Ignore root example connection config
 query_config.yaml # Ignore user's query config
 cross_site_config.yaml # Ignore user's cross-site config
 script_config.yaml # Ignore user's script config
+channel_model_test_config.yaml # Ignore user's test model config
 
 # Database backups
 *.sql

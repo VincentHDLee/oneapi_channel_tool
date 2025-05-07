@@ -14,14 +14,20 @@ from typing import Literal # For _select_connection_config return type
 from channel_manager_lib.config_utils import (
     CONNECTION_CONFIG_DIR, UPDATE_CONFIG_PATH, QUERY_CONFIG_PATH, CROSS_SITE_ACTION_CONFIG_PATH, # 导入 QUERY_CONFIG_PATH
     CLEAN_UPDATE_CONFIG_TEMPLATE_PATH, LOGS_DIR, DEFAULT_LOG_FILE_BASENAME,
-    list_connection_configs, load_yaml_config, load_script_config # 导入 YAML 加载函数和脚本配置加载函数
+    list_connection_configs, load_yaml_config, load_script_config, # 导入 YAML 加载函数和脚本配置加载函数
+    # CHANNEL_MODEL_TEST_CONFIG_PATH # 将在 config_utils.py 中定义后取消注释
 )
 from channel_manager_lib.undo_utils import (
     perform_undo, find_latest_undo_file, find_latest_undo_file_for,
     get_undo_summary, _get_tool_instance # 导入撤销相关函数和工具实例获取
 )
-from channel_manager_lib.single_site_handler import run_single_site_operation, run_test_and_enable_disabled # 导入单站点处理函数 (新增 run_test_and_enable_disabled)
+from channel_manager_lib.single_site_handler import run_single_site_operation, run_test_and_enable_disabled, run_test_model_on_channels # 导入单站点处理函数 (新增 run_test_model_on_channels)
 from channel_manager_lib.cross_site_handler import run_cross_site_operation # 导入跨站点处理函数
+
+# 默认的测试模型配置文件名，之后可以移到 config_utils.py
+DEFAULT_CHANNEL_MODEL_TEST_CONFIG_NAME = "channel_model_test_config.yaml"
+DEFAULT_CHANNEL_MODEL_TEST_CONFIG_PATH = Path(DEFAULT_CHANNEL_MODEL_TEST_CONFIG_NAME)
+
 
 # --- Helper Functions ---
 
@@ -152,7 +158,7 @@ def setup_arg_parser():
     )
     # --- 操作模式参数组 ---
     mode_group = parser.add_argument_group('运行模式 (选择一种或不选进入交互模式)')
-    mode_action = mode_group.add_mutually_exclusive_group() # 确保 --update, --undo, --test-and-enable-disabled 互斥
+    mode_action = mode_group.add_mutually_exclusive_group() # 确保 --update, --undo, --test-and-enable-disabled, --test-channel-model 互斥
     mode_action.add_argument(
         "--update",
         action="store_true",
@@ -173,22 +179,69 @@ def setup_arg_parser():
         metavar="<API_KEY_TO_FIND>",
         help="查找指定 API Key 所在的渠道并打印其信息 (需要指定 --connection-config)。"
     )
-    # --- 更新/撤销共享参数 ---
-    shared_group = parser.add_argument_group('单站点目标')
-    shared_group.add_argument(
+    mode_action.add_argument(
+        "--test-channel-model",
+        metavar="<test_config_path>",
+        help="根据指定的测试配置文件测试渠道对特定模型的支持情况。\n(例如: channel_model_test_config.yaml)"
+    )
+    # --- 参数组定义调整 ---
+    # 将 --connection-config 保持为通用参数，但其适用性由各模式自行决定
+    # --clear-config 属于更新操作
+    # 新增 --clear-test-model-config 属于测试模型操作
+
+    # 通用单实例连接配置 (某些模式需要)
+    connection_config_group = parser.add_argument_group('连接配置 (部分模式需要)')
+    connection_config_group.add_argument(
         "--connection-config",
         metavar="<path>",
-        help=f"指定单站点操作的目标连接配置文件路径。\n(例如: {CONNECTION_CONFIG_DIR}/my_config.yaml)"
+        help=f"指定目标连接配置文件路径 (用于 --update, --undo, --test-and-enable-disabled, --find-key)。\n(例如: {CONNECTION_CONFIG_DIR}/my_config.yaml)"
     )
-    # --api-type 参数已被移除
-
-    # --- 更新特定参数 ---
-    update_group = parser.add_argument_group('更新选项 (仅在 --update 模式下有效)')
-    update_group.add_argument(
-        "--clear-config",
+    
+    # 更新特定参数
+    update_options_group = parser.add_argument_group('更新操作特定选项 (当使用 --update 时)')
+    update_options_group.add_argument(
+        "--clear-config", # 这个参数与 --update 关联
         action="store_true",
-        help=f"在更新成功完成后，使用模板恢复 '{UPDATE_CONFIG_PATH.name}'。"
+        help=f"在 --update 操作成功完成后，将 '{UPDATE_CONFIG_PATH.name}' 恢复为默认干净状态。"
     )
+
+    # 测试模型特定参数
+    test_model_options_group = parser.add_argument_group('测试模型操作特定选项 (当使用 --test-channel-model 时)')
+    test_model_options_group.add_argument(
+        "--clear-test-model-config", # 新参数
+        action="store_true",
+        help=f"在 --test-channel-model 操作成功完成后，将指定的测试配置文件恢复为默认干净状态。"
+    )
+
+    # --- 通用控制参数 ---
+    # shared_group 名字可能不再准确，改为 control_group 或 general_options
+    # 此处的 shared_group = parser.add_argument_group('单站点目标 (用于 --update, --undo, --test-and-enable-disabled, --find-key)')
+    # 应该被上面的 connection_config_group 和各特定选项组取代或重构。
+    # 为了最小化改动，暂时保留旧的 shared_group 声明，但其实际内容已被细分。
+    # 实际上，--connection-config 已被移到 connection_config_group。
+    # --clear-config 已被移到 update_options_group。
+    # 我们需要确保旧的 shared_group 不再包含这些。
+
+    # 旧的 shared_group 定义将被新的分组覆盖或逻辑上失效，这里将其注释掉以明确
+    # shared_group = parser.add_argument_group('单站点目标 (用于 --update, --undo, --test-and-enable-disabled, --find-key)')
+    # shared_group.add_argument(
+    #     "--connection-config", ...
+    # )
+    # update_group = parser.add_argument_group('更新选项 (仅在 --update 模式下有效)')
+    # update_group.add_argument(
+    #     "--clear-config", ...
+    # )
+    # 以上旧的 group 定义实际上已被新的更细致的 group 取代。
+    # argparse 会按顺序处理，所以新的 group 会生效。
+    # 保留 control_group 用于 -y/--yes。
+    # 以下对 shared_group 的引用应被删除，因为其参数已移至新的分组
+    # shared_group.add_argument(
+    #     "--connection-config",
+    #     metavar="<path>",
+    #     help=f"指定单站点操作的目标连接配置文件路径。\n(例如: {CONNECTION_CONFIG_DIR}/my_config.yaml)"
+    # )
+    # # --api-type 参数已被移除
+
     # --- 通用控制参数 ---
     control_group = parser.add_argument_group('通用控制')
     control_group.add_argument(
@@ -228,7 +281,11 @@ async def main_cli_entry(args):
 
 
     # --- 1. 确定操作模式 ---
-    is_interactive_mode = not args.update and not args.undo and not args.test_and_enable_disabled and not args.find_key
+    is_interactive_mode = not args.update and \
+                          not args.undo and \
+                          not args.test_and_enable_disabled and \
+                          not args.find_key and \
+                          not args.test_channel_model # 新增条件
 
     if args.find_key:
         operation_mode = 'find_key'
@@ -243,14 +300,33 @@ async def main_cli_entry(args):
             print(f"错误：指定的连接配置文件不存在: {args.connection_config}")
             logging.error(f"指定的连接配置文件不存在: {args.connection_config}")
             return 1
-    elif not is_interactive_mode: # Other non-interactive modes
+    elif args.test_channel_model: # 新增的处理分支
+        operation_mode = 'test_channel_model'
+        action_flag = "--test-channel-model"
+        logging.info(f"通过命令行参数 ({action_flag}) 选择测试指定模型渠道模式。")
+        test_config_path_str = args.test_channel_model # 用户提供的路径
+        
+        # 检查配置文件是否存在
+        test_config_path = Path(test_config_path_str)
+        if not test_config_path.is_file():
+            print(f"错误：指定的测试配置文件不存在: {test_config_path_str}")
+            logging.error(f"指定的测试配置文件不存在: {test_config_path_str}")
+            return 1
+        
+        # 后续会在这里调用处理函数
+        # final_exit_code = await run_test_model_on_channels(args, script_config, str(test_config_path))
+        # return final_exit_code # 暂时先直接返回，等待实现处理函数
+        
+    elif not is_interactive_mode: # Other non-interactive modes (update, undo, test_and_enable_disabled)
         operation_mode = 'single_site' # Default to single_site for update/undo/test_and_enable
         action_flag = ""
         if args.update: action_flag = "--update"
         elif args.undo: action_flag = "--undo"
         elif args.test_and_enable_disabled: action_flag = "--test-and-enable-disabled"
+        # No need to check args.find_key or args.test_channel_model here, as they are handled above
+        
         logging.info(f"通过命令行参数 ({action_flag}) 选择单站操作模式。")
-        # 命令行模式下必须提供连接配置
+        # 命令行模式下必须提供连接配置 (for update, undo, test_and_enable_disabled)
         if not args.connection_config:
             print(f"错误：使用 {action_flag} 时必须通过 --connection-config 指定目标配置文件。")
             logging.error(f"命令行模式 ({action_flag}) 下未指定 --connection-config。")
@@ -265,7 +341,8 @@ async def main_cli_entry(args):
         print("\n请选择要执行的操作模式:")
         while True:
             try:
-                choice = input("[1] 单站点批量更新/撤销 [2] 跨站点渠道操作 [0] 退出: ")
+                # 交互模式暂不添加新选项，优先命令行实现
+                choice = input("[1] 单站点批量更新/撤销/查询 [2] 跨站点渠道操作 [0] 退出: ")
                 if choice == '1':
                     operation_mode = 'single_site'
                     logging.info("用户选择单站操作模式。")
@@ -342,25 +419,27 @@ async def main_cli_entry(args):
 
                 while True:
                     try:
-                        choice = input("请选择操作: [1] 查询所有渠道 [2] 执行新更新 [3] 撤销上次操作 [4] 测试并启用禁用渠道 [0] 退出: ")
+                        choice = input("请选择操作: [1] 查询所有渠道 [2] 执行新更新 [3] 撤销上次操作 [4] 测试并启用自动禁用的渠道 [5] 测试指定渠道的特定模型 [0] 退出: ")
                         if choice == '1': action_to_perform = 'query_all'; break
                         elif choice == '2': action_to_perform = 'update'; break
                         elif choice == '3': action_to_perform = 'undo'; break
-                        elif choice == '4': action_to_perform = 'test_and_enable'; break
+                        elif choice == '4': action_to_perform = 'test_and_enable'; break # 动作名不变
+                        elif choice == '5': action_to_perform = 'test_channel_model'; break # 动作名不变
                         elif choice == '0': action_to_perform = None; break
-                        else: print("无效选项，请输入 1, 2, 3, 4 或 0。")
+                        else: print("无效选项，请输入 0 到 5 之间的数字。")
                     except EOFError: print("\n操作已取消。"); action_to_perform = None; break
             else:
-                logging.info(f"未找到针对 '{config_name}' ({api_type}) 的撤销文件，默认执行更新。")
+                logging.info(f"未找到针对 '{config_name}' ({api_type}) 的撤销文件。")
                 # 在没有撤销文件时，提供查询和更新选项
                 while True:
                     try:
-                        choice = input("请选择操作: [1] 查询所有渠道 [2] 执行新更新 [3] 测试并启用禁用渠道 [0] 退出: ")
+                        choice = input("请选择操作: [1] 查询所有渠道 [2] 执行新更新 [3] 测试并启用自动禁用的渠道 [4] 测试指定渠道的特定模型 [0] 退出: ")
                         if choice == '1': action_to_perform = 'query_all'; break
                         elif choice == '2': action_to_perform = 'update'; break
-                        elif choice == '3': action_to_perform = 'test_and_enable'; break
+                        elif choice == '3': action_to_perform = 'test_and_enable'; break # 动作名不变
+                        elif choice == '4': action_to_perform = 'test_channel_model'; break # 动作名不变
                         elif choice == '0': action_to_perform = None; break
-                        else: print("无效选项，请输入 1, 2, 3 或 0。")
+                        else: print("无效选项，请输入 0 到 4 之间的数字。")
                     except EOFError: print("\n操作已取消。"); action_to_perform = None; break
 
         # --- 执行单站操作 ---
@@ -458,16 +537,47 @@ async def main_cli_entry(args):
                 print(f"\n--- 撤销模式 ---")
                 print(f"将使用文件 '{undo_file_to_use.name}' 进行撤销。")
                 # 传递 script_config 给处理器
-                final_exit_code = await perform_undo(api_type, connection_config_path_str, undo_file_to_use, args.yes) # 移除多余的 script_config 参数
+                final_exit_code = await perform_undo(api_type, connection_config_path_str, undo_file_to_use, args.yes)
         elif action_to_perform == 'test_and_enable':
             # 传递 script_config 给处理器
             final_exit_code = await run_test_and_enable_disabled(args, connection_config_path_str, api_type, script_config)
+        elif action_to_perform == 'test_channel_model':
+            logging.info("用户选择交互式测试指定模型渠道。")
+            # 交互模式下，默认使用根目录的 DEFAULT_CHANNEL_MODEL_TEST_CONFIG_PATH
+            # args.test_channel_model 在交互模式下通常为 None
+            # 我们需要检查该文件是否存在
+            if not DEFAULT_CHANNEL_MODEL_TEST_CONFIG_PATH.is_file():
+                print(f"\n错误：测试指定模型功能需要 '{DEFAULT_CHANNEL_MODEL_TEST_CONFIG_NAME}' 文件存在于项目根目录。")
+                print(f"请先创建并配置该文件，或使用 '--test-channel-model <路径>' 命令行参数指定自定义路径。")
+                logging.error(f"交互模式下执行测试指定模型渠道失败: {DEFAULT_CHANNEL_MODEL_TEST_CONFIG_NAME} 文件不存在。")
+                final_exit_code = 1
+            else:
+                # 调用已有的处理函数，传递默认配置文件路径
+                # 注意: args 对象是从命令行解析的，交互模式下其 .test_channel_model 通常为 None
+                # run_test_model_on_channels 函数签名已更新，需要传递交互模式下选定的连接配置
+                # connection_config_path_str 在此作用域内是用户选择的连接配置
+                final_exit_code = await run_test_model_on_channels(
+                    args,
+                    script_config,
+                    str(DEFAULT_CHANNEL_MODEL_TEST_CONFIG_PATH),
+                    connection_config_path_str  # 传递交互模式下选定的连接配置
+                )
         else: # action_to_perform is None (用户选择退出)
              # 只有在不是因为不支持而退出时才打印取消消息 # (逻辑调整：如果final_exit_code非0，可能是之前的错误)
              if action_to_perform is None and final_exit_code == 0: # 仅在明确退出且无错误时打印取消
-                 print("操作已取消或不支持。")
+                 print("操作已取消。") # 简化消息
              final_exit_code = 0 # 保证正常退出
     
+    elif operation_mode == 'test_channel_model': # 新增的操作模式处理
+        logging.info("进入测试指定模型渠道流程...")
+        # args.test_channel_model 包含配置文件的路径，已在前面验证过存在性
+        test_config_path_str = args.test_channel_model
+        
+        # 调用新的处理函数
+        # 注意：run_test_model_on_channels 将需要访问 args (例如 -y) 和 script_config
+        final_exit_code = await run_test_model_on_channels(args, script_config, test_config_path_str)
+        logging.info(f"测试指定模型渠道操作完成，退出码: {final_exit_code}")
+        
     elif operation_mode == 'find_key':
         logging.info("进入查找 API Key 流程...")
         key_to_find = args.find_key

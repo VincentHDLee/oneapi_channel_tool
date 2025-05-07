@@ -47,6 +47,7 @@
     *   **跨站点渠道操作**: 支持在不同 One API 实例间执行操作（例如复制字段），使用独立的 `cross_site_config.yaml` 进行配置。
     *   **测试并启用禁用渠道**: 新增功能，用于自动测试状态为“自动禁用”的渠道，并在测试通过后将其启用。现在支持 `newapi` 和 `voapi` 类型。
     *   **智能确认**: 在“测试并启用”模式下，如果测试失败的原因仅为配额问题 (HTTP 429)，脚本将自动启用测试通过的渠道（除非使用 `--yes`）。只有当存在其他类型的错误时，才会提示用户确认。
+    *   **测试指定模型的渠道**: 新增功能，允许用户通过专用配置文件 (`channel_model_test_config.yaml`) 筛选渠道，并针对这些渠道测试特定模型的可用性，输出详细的测试结果。
 
 ## One API, New API, VoAPI 项目概述与本工具的关联
 
@@ -182,9 +183,13 @@
         *   配置 `source` 和 `target` 实例的连接配置路径和精确的渠道筛选器。
         *   根据所选 `action` 配置相应的参数（例如 `copy_fields_params`）。
         *   `compare_fields`: 比较源渠道和目标渠道指定字段的值，不进行修改。
-
-4.  **(可选) 配置脚本行为**:
-    *   编辑根目录下的 `script_config.yaml` 文件（如果不存在，脚本会使用默认值）。
+        *   **测试指定模型的渠道**: 编辑根目录下的 `channel_model_test_config.yaml` 文件 (如果不存在，可以从 `channel_model_test_config.example` 复制)。
+            *   设置 `target_connection_config` (在通过命令行参数 `--test-channel-model` 模式下必需；在交互式菜单模式下，此字段将被忽略，程序会使用菜单中选择的连接配置) 指向目标实例的连接配置。
+            *   在 `filters` 部分设置筛选条件以选择要测试的渠道。
+            *   在 `test_parameters` 部分指定 `model_to_test` (要测试的模型名称) 以及可选的报告参数。
+    
+    4.  **(可选) 配置脚本行为**:
+        *   编辑根目录下的 `script_config.yaml` 文件（如果不存在，脚本会使用默认值）。
     *   调整 `max_concurrent_requests` 来控制并发 API 请求数量。较低的值（如 5）可以减少对本地或负载敏感 API 的压力。
     *   调整 `request_timeout` 来设置 API 请求的超时时间（秒）。
     *   调整 `api_page_sizes` 下的 `newapi` 和 `voapi` 值来控制获取渠道列表时的分页大小，以优化大量渠道的获取效率 (默认为 100)。
@@ -240,12 +245,15 @@
 
         # 更新并以 DEBUG 级别记录日志到指定文件，不清理配置 (API 类型从配置读取)
         ./run_tool.sh --update --connection-config connection_configs/my_server.yaml --log-level DEBUG --log-file /var/log/oneapi_updater.log -y
+
+        # 测试指定模型的渠道：使用指定的测试配置，自动确认 (API 类型从目标连接配置读取)
+        ./run_tool.sh --test-channel-model channel_model_test_config.yaml -y
         ```
 
 ## 命令行参数
 
 ```
-usage: run_tool.sh [-h] [--update | --undo | --test-and-enable-disabled | --find-key <API_KEY_TO_FIND>]
+usage: run_tool.sh [-h] [--update | --undo | --test-and-enable-disabled | --find-key <API_KEY_TO_FIND> | --test-channel-model <test_config_path>]
                    [--connection-config <path>] [--clear-config] [-y]
                    [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--log-file <path>]
 
@@ -256,11 +264,25 @@ One API 渠道批量更新工具
   --undo                执行撤销操作 (需要 --connection-config)。
   --test-and-enable-disabled
                         测试自动禁用的渠道并尝试启用 (需要 --connection-config)。
-  --find-key <API_KEY_TO_FIND>
+  --find_key <API_KEY_TO_FIND>
                         查找指定 API Key 所在的渠道并打印其信息 (需要 --connection-config)。
-单站点目标:
+  --test-channel-model <test_config_path>
+                        根据指定的测试配置文件测试渠道对特定模型的支持情况。
+                        (例如: channel_model_test_config.yaml)
+
+连接配置 (部分模式需要):
   --connection-config <path>
-                        指定单站点操作的目标连接配置文件路径。
+                        指定目标连接配置文件路径 (用于 --update, --undo, --test-and-enable-disabled, --find-key)。
+                        (例如: connection_configs/my_config.yaml)
+
+更新操作特定选项 (当使用 --update 时):
+  --clear-config        在 --update 操作成功完成后，将 'update_config.yaml'
+                        恢复为默认干净状态。
+
+测试模型操作特定选项 (当使用 --test-channel-model 时):
+  --clear-test-model-config
+                        在 --test-channel-model 操作成功完成后，将指定的测试配置文件
+                        恢复为默认干净状态。
                         (例如: connection_configs/my_config.yaml)
                         如果未提供，将进入交互模式选择。
   # --api-type 参数已被移除，API 类型现在从连接配置文件中读取。
@@ -511,6 +533,29 @@ compare_fields_params:
 
 ```
 (请参考 `cross_site_config.example` 文件获取最新的配置项列表和注释)
+
+### `channel_model_test_config.example` (位于根目录)
+
+```yaml
+# channel_model_test_config.example
+# 用于配置“测试指定模型的渠道”功能的配置文件
+
+# (在通过命令行参数 --test-channel-model 模式下必需；
+#  在交互式菜单模式下，此字段将被忽略，程序会使用菜单中选择的连接配置)
+target_connection_config: "connection_configs/your_connection_config_here.yaml"
+
+# (必需) 筛选条件，结构与 update_config.yaml 中的 filters 部分完全相同。
+filters:
+  name_filters: ["FreeGemini"] # 示例
+  match_mode: "any"
+
+# (必需) 测试参数
+test_parameters:
+  model_to_test: "gemini-1.5-flash-8b-latest" # (必需) 要测试的模型
+  report_failed_only: false # (可选) 是否只报告失败的渠道
+  continue_on_failure: true # (可选) 是否在失败后继续测试其他渠道
+```
+(请参考 `channel_model_test_config.example` 文件获取完整的配置项列表和详细注释)
 
 
 ## 注意事项

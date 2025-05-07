@@ -163,6 +163,23 @@ class ChannelToolBase(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
+    async def test_channel_api(self, channel_id: int, model_name: str) -> tuple[bool, str, str | None]:
+        """
+        使用指定的模型测试单个渠道。
+
+        Args:
+            channel_id (int): 要测试的渠道的 ID。
+            model_name (str): 用于测试的模型名称。
+
+        Returns:
+            tuple[bool, str, str | None]: (测试是否通过, 描述信息, 失败类型)
+                                          失败类型: 'quota', 'auth', 'api_error', 'server_error',
+                                                    'response_format', 'timeout', 'network',
+                                                    'config', 'exception', None (成功时)
+        """
+        pass
+
     def filter_channels(self, channel_list: list, filters_config: dict | None = None) -> list:
         """
         根据提供的筛选器配置过滤渠道列表。

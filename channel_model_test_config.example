@@ -1,0 +1,53 @@
+# channel_model_test_config.example
+# “测试指定模型的渠道”功能的示例配置文件。
+# 您可以复制此文件为 channel_model_test_config.yaml 并修改以供实际使用，
+# 或者通过 --test-channel-model <路径> 命令行参数指定自定义路径的配置文件。
+
+# (在通过命令行参数 --test-channel-model 模式下必需；
+#  在交互式菜单模式下，此字段将被忽略，程序会使用菜单中选择的连接配置)
+target_connection_config: "connection_configs/your_connection_config_here.yaml"
+
+# (必需) 筛选条件: 用于选择要执行测试操作的目标渠道。
+# filters 部分定义了如何选择要进行测试的渠道。
+filters:
+  # --- 筛选器组合逻辑 ---
+  # (必需) 筛选逻辑模式: "any" 或 "all"。
+  # "any": 渠道满足任一启用的包含性筛选器 (id, name_filters, group_filters, model_filters) 即可。
+  # "all": 渠道必须满足所有启用的包含性筛选器。
+  # 排除性筛选器 (exclude_name_filters) 总是会排除匹配项，无论 match_mode 如何。
+  match_mode: "any" # "any" 或 "all"
+
+  # --- 包含性筛选器 (至少提供一个，或根据 match_mode 提供多个) ---
+  # 通过渠道 ID 精确匹配 (数字列表或单个数字):
+  # id: 123
+  # id: [123, 456]
+
+  # 通过渠道名称部分匹配 (字符串列表，区分大小写):
+  # name_filters: ["ExampleBackup", "Test"]
+  name_filters: ["FreeGemini"]
+
+
+  # 通过渠道所属组精确匹配 (字符串列表):
+  # group_filters: ["default", "backup"]
+
+  # 通过渠道支持的模型列表部分匹配 (字符串列表，渠道的 models 字段包含任一指定模型即可):
+  # model_filters: ["gpt-3.5-turbo", "gpt-4"]
+
+  # --- 排除性筛选器 (可选) ---
+  # 排除名称包含指定子串的渠道 (字符串列表):
+  # exclude_name_filters: ["Claude", "Deprecated"]
+
+
+# (必需) 测试参数
+test_parameters:
+  # (必需) 字符串，指定要对筛选出的渠道进行测试的模型名称。
+  # 例如: "gpt-3.5-turbo", "claude-2", "gemini-pro"
+  model_to_test: "gemini-1.5-flash-latest" # 请替换为实际要测试的模型
+
+  # (可选) 布尔值，默认为 false。如果为 true，则只在最终报告中列出测试失败的渠道的详细信息。
+  # 测试通过的渠道信息仍然会被记录到日志中。
+  report_failed_only: false
+
+  # (可选) 布尔值，默认为 true。如果为 false，则在第一个渠道测试失败后立即停止后续所有渠道的测试。
+  # 如果为 true，即使有渠道测试失败，也会继续测试所有其他匹配的渠道。
+  continue_on_failure: true
