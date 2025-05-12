@@ -346,14 +346,32 @@ class VoApiChannelTool(ChannelToolBase):
 
 
     # --- 实现抽象的格式化方法 ---
-    def format_list_field_for_api(self, field_name: str, data_set: set) -> str:
+    def format_list_field_for_api(self, field_name: str, data_input: set | list) -> str:
         """
         VO API 的 'models' 字段期望一个逗号分隔的字符串。
         其他列表字段的行为可能不同，但为了安全，默认也使用字符串。
+        如果输入是列表 (例如 models 字段为了保持顺序)，则直接用逗号连接。
+        如果输入是集合 (例如其他列表类字段的旧处理方式)，则排序后连接以确保一致性。
         """
-        # 对集合元素排序以确保一致性
-        formatted_value = ",".join(sorted(list(data_set)))
-        logging.debug(f"格式化列表字段 '{field_name}' 为逗号分隔字符串 (VOAPI): {repr(formatted_value)}")
+        if isinstance(data_input, list):
+            # 当输入是列表时，假定顺序是重要的，直接连接
+            # 确保所有元素都转换为字符串并去除空值
+            formatted_value = ",".join(str(item).strip() for item in data_input if str(item).strip())
+        elif isinstance(data_input, set):
+            # 对集合元素排序以确保一致性
+            # 确保所有元素都转换为字符串并去除空值
+            formatted_value = ",".join(sorted(list(str(s).strip() for s in data_input if str(s).strip())))
+        else:
+            logging.warning(f"字段 '{field_name}' 的 format_list_field_for_api (VOAPI) 接收到意外类型: {type(data_input)}。将尝试按集合处理。")
+            try:
+                # 尝试将其视为可迭代对象并转换为集合处理
+                temp_set = set(str(item).strip() for item in data_input if str(item).strip())
+                formatted_value = ",".join(sorted(list(temp_set)))
+            except TypeError:
+                logging.error(f"无法将字段 '{field_name}' (VOAPI) 的值 {data_input} 转换为集合或列表进行格式化。返回空字符串。")
+                return ""
+        
+        logging.debug(f"格式化列表/集合字段 '{field_name}' (VOAPI, 输入类型: {type(data_input).__name__}) 为逗号分隔字符串: {repr(formatted_value)}")
         return formatted_value
 
     def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> dict:

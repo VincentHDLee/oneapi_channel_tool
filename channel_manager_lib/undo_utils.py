@@ -136,28 +136,29 @@ async def save_undo_data(api_type: str, api_config_path: str | Path, update_conf
     original_channels_data = []
     fetch_errors = 0
 
-    # Use an explicit loop with semaphore control instead of asyncio.gather
-    for channel_id in channel_ids_to_fetch:
+    logging.info(f"[Undo] 开始逐个获取 {len(channel_ids_to_fetch)} 个渠道的详细状态 (并发: {max_concurrent}, 间隔: {interval_seconds:.3f}s)...")
+    for idx, channel_id in enumerate(channel_ids_to_fetch):
+        logging.info(f"[Undo] 处理渠道 {idx+1}/{len(channel_ids_to_fetch)}: ID {channel_id}")
         async with semaphore:
-            # --- 添加请求间隔 ---
             if interval_seconds > 0:
+                # 此处 debug 日志可能因 INFO 级别而不显示，但 sleep 会执行
                 logging.debug(f"[Undo] 等待 {interval_seconds:.3f} 秒后获取详情 (ID: {channel_id})")
                 await asyncio.sleep(interval_seconds)
-            # --- 结束添加请求间隔 ---
+            
+            logging.info(f"[Undo] 正在获取渠道 ID: {channel_id} 的详细信息...")
             try:
-                # 调用原始的 get_channel_details
                 details, message = await tool_instance.get_channel_details(channel_id)
                 if isinstance(details, dict):
-                    logging.debug(f"[Undo] 获取渠道 {channel_id} 状态成功: {message}")
-                    original_channels_data.append(details) # Append directly to the list
+                    logging.info(f"[Undo] 成功获取渠道 ID: {channel_id} 的状态。原始消息: {message}")
+                    original_channels_data.append(details)
                 else:
-                    logging.error(f"[Undo] 获取渠道 {channel_id} 的原始状态失败: {message}")
+                    logging.error(f"[Undo] 获取渠道 ID: {channel_id} 的原始状态失败: {message}")
                     fetch_errors += 1
             except Exception as e:
-                 logging.error(f"[Undo] 获取渠道 {channel_id} 的原始状态时发生异常: {e}", exc_info=True)
+                 logging.error(f"[Undo] 获取渠道 ID: {channel_id} 的原始状态时发生异常: {e}", exc_info=True)
                  fetch_errors += 1
-
-    # fetch_errors is already accumulated in the loop
+    
+    logging.info(f"[Undo] 所有渠道详细状态获取尝试完毕。成功: {len(original_channels_data)}, 失败: {fetch_errors}")
 
     if fetch_errors > 0:
          logging.warning(f"[Undo] {fetch_errors} 个渠道的原始状态获取失败，这些渠道将无法通过此文件撤销。")

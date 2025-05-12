@@ -28,7 +28,7 @@
 *   **列表字段 (`models`, `group`, `tag`):**
     *   `mode: "overwrite"` (默认): 完全覆盖目标字段的值。
     *   `mode: "append"`: 将 `value` 中的项追加到目标字段（自动去重）。
-    *   `mode: "remove"`: 从目标字段中移除 `value` 中包含的项。
+    *   `mode: "remove"`: 从目标字段中移除 `value` 中包含的项。对于 `models` 字段，此操作会保持其余模型在其列表中的原始相对顺序。
 *   **映射/字典字段 (`model_mapping`, `setting`, `status_code_mapping`, `headers`, `override_params`):**
     *   `mode: "overwrite"` (默认): 完全覆盖目标字段的值。
     *   `mode: "merge"`: 将 `value` 中的键值对合并到目标字段。如果键已存在，则更新其值；如果键不存在，则添加。

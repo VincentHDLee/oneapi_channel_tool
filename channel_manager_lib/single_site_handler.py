@@ -277,6 +277,9 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
     payloads_to_update = []
     channels_to_update_info = []
     has_planned_changes = False
+    unchanged_channel_count = 0 # 新增：计数无实际变更的渠道
+    actually_changed_channel_count = 0 # 新增：计数有实际变更的渠道
+
     for channel in filtered_list:
         channel_id = channel.get('id')
         channel_name = channel.get('name', f'ID:{channel_id}')
@@ -284,10 +287,11 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
             # _prepare_update_payload 是 ChannelToolBase 的内部方法
             payload_data, updated_fields = tool_instance._prepare_update_payload(channel)
 
-            if payload_data and updated_fields:
-                if not has_planned_changes:
+            if payload_data and updated_fields: # 检查是否有实际的更新字段
+                if not has_planned_changes: # 第一次检测到有变更的渠道
                     print("检测到以下计划变更:")
                 has_planned_changes = True
+                actually_changed_channel_count +=1 # 计数实际发生变更的渠道
                 log_msg_header = f"渠道 {channel_name} (ID: {channel_id}) 计划进行以下更新:"
                 print(f"\n{log_msg_header}")
                 logging.info(log_msg_header)
@@ -301,14 +305,33 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
                     logging.info(log_msg_detail)
                 payloads_to_update.append(payload_data)
                 channels_to_update_info.append({'id': channel_id, 'name': channel_name})
+            else: # 没有实际的更新字段
+                unchanged_channel_count += 1
+                logging.debug(f"渠道 {channel_name} (ID: {channel_id}) 经过检查，字段值未发生实际变化。")
+
         except Exception as e:
             logging.error(f"为渠道 {channel_name} (ID: {channel_id}) 准备更新数据时出错: {e}", exc_info=True)
             print(f"[错误] 处理渠道 {channel_name} (ID: {channel_id}) 时出错，请检查日志。")
+            # 即使单个渠道处理出错，也应该继续处理其他渠道，但错误会记录
 
-    if not has_planned_changes:
-        logging.info("模拟完成，没有检测到需要执行的更新。")
-        print("\n模拟完成：未发现需要更新的渠道。")
+    # 在循环结束后，处理汇总信息
+    if not has_planned_changes and unchanged_channel_count > 0 : # 所有渠道都没有实际变更
+        logging.info(f"模拟完成，对 {unchanged_channel_count} 个匹配的渠道进行了检查，均无需更新。")
+        print(f"\n模拟完成：已检查 {unchanged_channel_count} 个匹配的渠道，均无需更新。")
         return 0
+    elif not has_planned_changes and unchanged_channel_count == 0: # 没有匹配的渠道有变更，也没有未变更的（理论上 filtered_list 为空时发生）
+        logging.info("模拟完成，没有检测到需要执行的更新 (可能是 filtered_list 为空)。")
+        print("\n模拟完成：未发现需要更新的渠道。") # 与原逻辑一致
+        return 0
+    elif has_planned_changes and unchanged_channel_count > 0: # 部分渠道有变更，部分无变更
+        logging.info(f"模拟完成: {actually_changed_channel_count} 个渠道有计划变更，另外 {unchanged_channel_count} 个渠道无需更新。")
+        print(f"\n模拟摘要: {actually_changed_channel_count} 个渠道有计划变更。另外 {unchanged_channel_count} 个渠道无需更新。")
+    elif has_planned_changes and unchanged_channel_count == 0: # 所有匹配的渠道都有变更
+        logging.info(f"模拟完成: 所有 {actually_changed_channel_count} 个匹配的渠道都有计划变更。")
+        # 此时不需要额外打印，因为之前的循环已经打印了所有变更
+
+    # 如果 has_planned_changes 为 True，则继续后续的确认和执行流程
+    # 如果为 False（上面已处理），则已返回 0
 
     # --- 3. 询问用户是否执行实际更新 ---
     execute_real_update = False

@@ -258,10 +258,27 @@ class ChannelToolBase(abc.ABC):
 
                 # 模式 4: remove (适用于列表/集合字段)
                 elif mode == "remove":
-                    original_set = normalize_to_set(original_value) # 使用导入的函数
-                    remove_set = normalize_to_set(update_value) # 使用导入的函数
-                    final_set = original_set - remove_set
-                    new_value = self.format_list_field_for_api(field, final_set) # 使用子类方法格式化
+                    if field == "models": # 特殊处理 models 字段以保持顺序
+                        original_list = []
+                        if isinstance(original_value, str):
+                            original_list = [m.strip() for m in original_value.split(',') if m.strip()]
+                        elif isinstance(original_value, list):
+                            original_list = [str(m).strip() for m in original_value if str(m).strip()]
+                        
+                        items_to_remove = []
+                        if isinstance(update_value, str):
+                            items_to_remove = [m.strip() for m in update_value.split(',') if m.strip()]
+                        elif isinstance(update_value, list):
+                            items_to_remove = [str(m).strip() for m in update_value if str(m).strip()]
+                        
+                        # 创建一个新列表，仅包含不在移除列表中的元素，并保持原始顺序
+                        final_list = [m for m in original_list if m not in items_to_remove]
+                        new_value = self.format_list_field_for_api(field, final_list) # 使用子类方法格式化，传递列表
+                    else: # 其他列表类型字段按原逻辑处理 (集合操作，不保证顺序)
+                        original_set = normalize_to_set(original_value) # 使用导入的函数
+                        remove_set = normalize_to_set(update_value) # 使用导入的函数
+                        final_set = original_set - remove_set
+                        new_value = self.format_list_field_for_api(field, final_set) # 使用子类方法格式化
 
                 # 模式 5: merge (适用于字典字段)
                 elif mode == "merge":
