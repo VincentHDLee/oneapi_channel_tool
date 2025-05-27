@@ -11,11 +11,11 @@ site_url: "https://your-one-api-domain.com"
 # One API 管理员令牌 (必需)
 # 这是用于调用 One API 管理接口的认证令牌。
 # 获取方式:
-# 1. 登录你的 One API 实例。
-# 2. 转到 "令牌" 页面。
-# 3. 创建一个新的令牌，确保它具有管理员权限 (通常创建时默认即有)。
-# 4. 复制生成的令牌密钥 (通常以 sk- 开头)。
-# 示例: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# 登录你的 One API 实例，通常是用户ID为1的 root 用户。
+# 进入 “个人设置” 页面。
+# 点击 “生成系统访问令牌” 按钮。
+# 复制生成的令牌。这是一个不定长、可能包含特殊符号、大小写字母和数字的复杂令牌。
+# 示例: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" (请注意，实际生成的系统访问令牌可能没有 "sk-" 前缀)
 api_token: "YOUR_ONE_API_ADMIN_TOKEN"
 
 # 用于记录操作日志的用户 ID (可选, 默认为 '1')
