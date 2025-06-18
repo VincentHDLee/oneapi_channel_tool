@@ -238,7 +238,13 @@ class ChannelToolBase(abc.ABC):
             try:
                 # 模式 1: overwrite (默认)
                 if mode == "overwrite":
-                    new_value = update_value
+                    # 在覆盖模式下，也需要根据值的类型进行格式化
+                    if isinstance(update_value, list):
+                        new_value = self.format_list_field_for_api(field, set(update_value)) # 转换为集合再格式化
+                    elif isinstance(update_value, dict):
+                        new_value = self.format_dict_field_for_api(field, update_value)
+                    else:
+                        new_value = update_value # 其他类型直接赋值
 
                 # 模式 2: regex_replace (仅适用于字符串字段)
                 elif mode == "regex_replace":

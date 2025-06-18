@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `--query` command-line argument for non-interactive channel data querying.
+
+### Fixed
+- Fixed a bug in `filtering_utils.py` where `id_filters` was not being correctly applied during channel filtering.
+- Fixed a critical bug in `channel_tool_base.py` where the `overwrite` mode did not correctly format list and dictionary values for the target API, which caused update failures on `voapi` instances.
+
+## [0.2.0] - 2025-06-19
+
+### Added
 - Implemented cross-site channel operations, allowing fields to be copied from a source channel to multiple target channels across different API instances.
 - Added a `--cross-site` command-line argument to directly trigger cross-site operations.
 - Introduced a configurable `request_interval_ms` to add delays between concurrent API requests, enhancing stability when updating a large number of channels.

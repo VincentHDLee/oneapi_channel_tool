@@ -51,18 +51,29 @@ def channel_matches_filters(channel, filters_config):
 
     channel_id = channel.get('id') # 获取当前渠道的 ID
 
-    # --- 精确 ID 匹配 (最高优先级) ---
+    # --- ID 列表匹配 (最高优先级) ---
+    id_filters = filters_config.get('id_filters')
+    if id_filters and isinstance(id_filters, list):
+        try:
+            # 确保列表中的 ID 和渠道 ID 都是整数以便正确比较
+            id_filters_int = {int(fid) for fid in id_filters}
+            match = int(channel_id) in id_filters_int
+            logging.debug(f"  - ID 列表匹配检查: channel_id={channel_id}, id_filters={id_filters_int}, 结果={match}")
+            return match
+        except (ValueError, TypeError, AttributeError):
+            logging.debug(f"  - ID 列表匹配检查时类型转换失败，跳过。channel_id={channel_id}, id_filters={id_filters}")
+            return False # 类型不匹配则无法匹配
+            
+    # --- 单个精确 ID 匹配 (向后兼容) ---
     filter_id_value = filters_config.get('id')
-    if filter_id_value is not None: # 允许用 id: null 来禁用 ID 匹配
-        # 尝试将两者都转为整数进行比较，以处理类型差异
+    if filter_id_value is not None:
         try:
             match = int(channel_id) == int(filter_id_value)
-            logging.debug(f"  - ID 精确匹配检查: channel_id={channel_id}, filter_id={filter_id_value}, 结果={match}")
+            logging.debug(f"  - 单个 ID 精确匹配检查: channel_id={channel_id}, filter_id={filter_id_value}, 结果={match}")
             return match
-        except (ValueError, TypeError, AttributeError): # 添加 AttributeError 处理 channel_id 为 None 的情况
-            # 如果转换失败或 channel_id 为 None，进行原始类型比较
+        except (ValueError, TypeError, AttributeError):
             match = channel_id == filter_id_value
-            logging.debug(f"  - ID 精确匹配检查 (原始类型): channel_id={channel_id}, filter_id={filter_id_value}, 结果={match}")
+            logging.debug(f"  - 单个 ID 精确匹配检查 (原始类型): channel_id={channel_id}, filter_id={filter_id_value}, 结果={match}")
             return match
 
     # --- 精确 Key 匹配 (次高优先级，在 ID 之后，常规筛选器之前) ---
@@ -194,7 +205,7 @@ def filter_channels(channel_list: list, filters_config: dict | None = None) -> l
     # 构建日志信息
     log_parts = [f"模式='{match_mode}'"]
     known_filters = [
-        "id", "key_filter", "name_filters", "exclude_name_filters", # 添加 key_filter 到 known_filters
+        "id_filters", "id", "key_filter", "name_filters", "exclude_name_filters", # 添加 id_filters 和 key_filter
         "group_filters", "exclude_group_filters",
         "model_filters", "exclude_model_filters",
         "tag_filters", "type_filters",
