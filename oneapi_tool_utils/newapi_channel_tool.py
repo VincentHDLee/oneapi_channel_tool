@@ -29,11 +29,12 @@ class NewApiChannelTool(ChannelToolBase):
             "New-Api-User": self.user_id,
         }
         all_channels = []
+        seen_channel_ids = set() # 用于跟踪已添加的渠道ID，防止重复
         page = 0
         logging.info(f"开始异步获取渠道列表 (newapi), 初始页码: {page}")
         final_message = "未知错误" # Default error message
 
-        page_size = self.script_config.get('api_page_sizes', {}).get('newapi', 100)
+        page_size = self.script_config.get('api_page_sizes', {}).get('newapi', 20)
         logging.info(f"使用分页大小 (newapi): {page_size}")
 
         # 使用 aiohttp session
@@ -76,21 +77,44 @@ class NewApiChannelTool(ChannelToolBase):
 
                             data = json_data.get("data")
 
-                            if data is None or not data: # Empty list ends pagination
+                            channels_list = None
+                            if isinstance(data, dict) and 'items' in data:
+                                channels_list = data.get('items')
+                                logging.debug("从 'items' 键提取渠道列表")
+                            elif isinstance(data, list):
+                                channels_list = data
+                                logging.debug("直接使用列表作为渠道列表")
+
+                            if channels_list is None or not channels_list: # Empty list ends pagination
                                 final_message = f"获取所有渠道完成, 最后一页页码: {page}, 总记录数: {len(all_channels)}"
                                 logging.info(final_message)
                                 break # Normal completion
+                            
+                            if isinstance(channels_list, list):
+                                new_channels_count = 0
+                                for channel in channels_list:
+                                    channel_id = channel.get('id')
+                                    if channel_id and channel_id not in seen_channel_ids:
+                                        seen_channel_ids.add(channel_id)
+                                        all_channels.append(channel)
+                                        new_channels_count += 1
+                                        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+                                            logging.debug(f"添加新渠道 (ID: {channel_id}): {json.dumps(channel, indent=2, ensure_ascii=False)}")
+                                    else:
+                                        logging.warning(f"检测到重复或无效的渠道ID: {channel_id}，已跳过。")
 
-                            if isinstance(data, list):
-                                logging.info(f"获取第 {page} 页渠道成功, 记录数: {len(data)}")
-                                if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-                                     for channel in data:
-                                         logging.debug(f"渠道详情 (ID: {channel.get('id')}): {json.dumps(channel, indent=2, ensure_ascii=False)}")
-                                all_channels.extend(data)
+                                logging.info(f"获取第 {page} 页渠道成功, 记录数: {len(channels_list)}, 新增记录数: {new_channels_count}")
+
+                                # 如果返回的记录数小于分页大小，说明是最后一页
+                                if len(channels_list) < page_size:
+                                    final_message = f"获取所有渠道完成 (最后一页记录数小于分页大小), 总页数: {page + 1}, 总记录数: {len(all_channels)}"
+                                    logging.info(final_message)
+                                    break
+                                
                                 page += 1
                             else:
                                 error_msg = (
-                                    f"获取渠道列表失败：API 响应格式不兼容（预期列表，收到 {type(data).__name__}）。"
+                                    f"获取渠道列表失败：API 响应格式不兼容（预期列表或含 'items' 的字典，收到 {type(data).__name__}）。"
                                     f"请确认 API 类型 (newapi) 与目标实例匹配。"
                                 )
                                 logging.error(error_msg + f" 页码: {page}, 响应 data 内容: {str(data)[:200]}...")
@@ -129,7 +153,18 @@ class NewApiChannelTool(ChannelToolBase):
             "New-Api-User": self.user_id,
         }
         request_url = f"{self.site_url}api/channel/" # newapi 更新路径
-        payload_to_send = channel_data_payload
+
+        # 在发送前，对需要特殊格式化的字段进行处理
+        payload_to_send = channel_data_payload.copy() # 创建副本以避免修改原始数据
+        if 'models' in payload_to_send and isinstance(payload_to_send['models'], list):
+            payload_to_send['models'] = self.format_list_field_for_api('models', payload_to_send['models'])
+        
+        # NewAPI 可能需要将字典序列化为 JSON 字符串
+        dict_fields_to_serialize = ['model_mapping', 'setting', 'headers']
+        for field in dict_fields_to_serialize:
+            if field in payload_to_send and isinstance(payload_to_send[field], dict):
+                payload_to_send[field] = self.format_dict_field_for_api(field, payload_to_send[field])
+
         success_message = f"渠道 {channel_name} (ID: {channel_id}) 更新成功。"
         error_message = f"更新渠道 {channel_name} (ID: {channel_id}) 失败。" # Default error
 
@@ -291,13 +326,15 @@ class NewApiChannelTool(ChannelToolBase):
         logging.debug(f"格式化列表/集合字段 '{field_name}' (输入类型: {type(data_input).__name__}) 为逗号分隔字符串: {repr(formatted_value)}")
         return formatted_value
 
-    def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> dict:
+    def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> str:
         """
-        NewAPI 通常期望字典字段（如 model_mapping, setting）在 JSON payload 中是原始字典对象。
+        NewAPI 通常期望字典字段（如 model_mapping, setting）是 JSON 字符串。
         """
-        logging.debug(f"格式化字典字段 '{field_name}' 为原始字典对象: {data_dict}")
-        # 不需要转换，直接返回字典
-        return data_dict
+        if not data_dict:
+            return "" # Return empty string if dict is empty
+        formatted_value = json.dumps(data_dict, ensure_ascii=False)
+        logging.debug(f"格式化字典字段 '{field_name}' 为 JSON 字符串: {formatted_value}")
+        return formatted_value
 
     def format_field_value_for_api(self, field_name: str, value: any) -> any:
         """
