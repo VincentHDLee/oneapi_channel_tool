@@ -118,8 +118,8 @@ async def run_cross_site_operation(args: 'argparse.Namespace', action: str, scri
 
     # 3. 加载连接配置并获取 API 类型
     try:
-        source_config_path = CONNECTION_CONFIG_DIR / f"{source_config_ref}.yaml"
-        target_config_path = CONNECTION_CONFIG_DIR / f"{target_config_ref}.yaml"
+        source_config_path = Path(source_config_ref)
+        target_config_path = Path(target_config_ref)
 
         source_conn_config = load_yaml_config(source_config_path)
         source_api_type = source_conn_config.get('api_type')

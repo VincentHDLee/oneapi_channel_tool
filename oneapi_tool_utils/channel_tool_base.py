@@ -79,6 +79,10 @@ class ChannelToolBase(abc.ABC):
         # user_id 是可选的
         return self.api_config.get('user_id', '1') # 提供默认值 '1'
 
+    def get_api_type(self) -> str | None:
+        """返回此工具实例的 API 类型 ('newapi' 或 'voapi')。"""
+        return self.api_config.get('api_type')
+
     @abc.abstractmethod
     def get_all_channels(self):
         """

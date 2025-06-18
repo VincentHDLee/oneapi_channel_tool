@@ -374,12 +374,15 @@ class VoApiChannelTool(ChannelToolBase):
         logging.debug(f"格式化列表/集合字段 '{field_name}' (VOAPI, 输入类型: {type(data_input).__name__}) 为逗号分隔字符串: {repr(formatted_value)}")
         return formatted_value
 
-    def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> dict:
+    def format_dict_field_for_api(self, field_name: str, data_dict: dict) -> str:
         """
-        VO API 可能期望字典字段（如 model_mapping）在 JSON payload 中是原始字典对象。
+        VO API 与 NewAPI 类似，期望字典字段是 JSON 字符串。
         """
-        logging.debug(f"格式化字典字段 '{field_name}' 为原始字典对象: {data_dict}")
-        return data_dict
+        if not data_dict:
+            return "" # Return empty string if dict is empty
+        formatted_value = json.dumps(data_dict, ensure_ascii=False)
+        logging.debug(f"格式化字典字段 '{field_name}' (VOAPI) 为 JSON 字符串: {formatted_value}")
+        return formatted_value
 
     def format_field_value_for_api(self, field_name: str, value: any) -> any:
         """

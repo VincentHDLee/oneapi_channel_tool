@@ -184,6 +184,11 @@ def setup_arg_parser():
         metavar="<test_config_path>",
         help="根据指定的测试配置文件测试渠道对特定模型的支持情况。\n(例如: channel_model_test_config.yaml)"
     )
+    mode_action.add_argument(
+        "--cross-site",
+        action="store_true",
+        help="执行跨站点操作 (根据 cross_site_action.yaml 配置)。"
+    )
     # --- 参数组定义调整 ---
     # 将 --connection-config 保持为通用参数，但其适用性由各模式自行决定
     # --clear-config 属于更新操作
@@ -285,9 +290,13 @@ async def main_cli_entry(args):
                           not args.undo and \
                           not args.test_and_enable_disabled and \
                           not args.find_key and \
-                          not args.test_channel_model # 新增条件
+                          not args.test_channel_model and \
+                          not args.cross_site # 新增条件
 
-    if args.find_key:
+    if args.cross_site:
+        operation_mode = 'cross_site'
+        logging.info("通过命令行参数 (--cross-site) 选择跨站操作模式。")
+    elif args.find_key:
         operation_mode = 'find_key'
         action_flag = "--find-key"
         logging.info(f"通过命令行参数 ({action_flag}) 选择查找 API Key 模式。")
@@ -716,14 +725,9 @@ async def main_cli_entry(args):
         # 4. 调用 cross_site_handler 中的函数
         logging.info("开始调用 run_cross_site_operation...")
         final_exit_code = await run_cross_site_operation(
-            args,
+            args=args,
             action=cross_site_action,
-            script_config=script_config,
-            source_config_path=source_config_path_str,
-            # Pass None for filters if the action doesn't require them
-            source_filter=source_filter if cross_site_action in ["compare_fields", "copy_fields"] else None,
-            target_config_path=target_config_path_str,
-            target_filter=target_filter if cross_site_action in ["compare_fields", "copy_fields"] else None
+            script_config=script_config
         )
     # --- 结束替换 ---
     else: # operation_mode is None (用户在模式选择时退出)

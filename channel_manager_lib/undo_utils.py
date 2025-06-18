@@ -68,106 +68,120 @@ def _get_tool_instance(api_type: str, api_config_path: str | Path, update_config
         logging.error(f"创建 API 类型 '{api_type}' 的工具实例时发生意外错误: {e}", exc_info=True)
         return None
 
-async def save_undo_data(api_type: str, api_config_path: str | Path, update_config_path: str | Path) -> Path | None:
+async def save_undo_data(
+    api_type: str,
+    api_config_path: str | Path,
+    update_config_path: str | Path | None = None,
+    channels_to_save: list[dict] | None = None
+) -> Path | None:
     """
     获取当前匹配渠道的状态并保存以供撤销。
-    应在执行更新前调用。
+    可以接收预先过滤好的渠道列表，或者通过 update_config_path 自行过滤。
 
     Args:
         api_type (str): API 类型 ('newapi' 或 'voapi').
         api_config_path (str | Path): 连接配置文件的路径。
-        update_config_path (str | Path): 更新配置文件的路径。
+        update_config_path (str | Path, optional): 更新配置文件的路径. 如果提供了 channels_to_save, 则此项可选.
+        channels_to_save (list[dict], optional): 预先获取和过滤的渠道详细数据列表.
 
     Returns:
-        Path | None: 保存的 undo 文件路径 (Path 对象)，或在失败时返回 None。
+        Path | None: 保存的 undo 文件路径 (Path 对象), 或在失败时返回 None。
     """
     logging.info("开始保存撤销数据...")
-    tool_instance = _get_tool_instance(api_type, api_config_path, update_config_path)
-    if not tool_instance:
-        logging.error("无法获取工具实例，无法保存撤销数据。")
-        return None
-
-    # 1. 获取所有渠道
-    # get_all_channels 现在返回 (list | None, str)
-    all_channels, get_list_message = await tool_instance.get_all_channels() # 之前错误地认为是同步的
-    if all_channels is None:
-        logging.error(f"获取所有渠道失败: {get_list_message}，无法保存撤销数据。")
-        return None
-    if not all_channels:
-        logging.warning(f"渠道列表为空 ({get_list_message})，无需保存撤销数据。")
-        return None
-
-    # 2. 加载更新配置以获取筛选条件
-    try:
-        with open(update_config_path, 'r', encoding='utf-8') as f:
-            # 使用 safe_load 避免执行任意代码
-            from yaml import safe_load
-            update_config = safe_load(f)
-        if not update_config:
-            raise ValueError("更新配置文件为空或无效")
-        filters_config = update_config.get('filters')
-        logging.debug(f"[Undo] 从 {update_config_path.name} 加载筛选条件: {filters_config}")
-    except Exception as e:
-        logging.error(f"[Undo] 加载或解析更新配置文件 '{update_config_path.name}' 失败: {e}，无法准确过滤渠道以保存撤销数据。")
-        # 可以选择返回 None 中断，或者继续但不保证撤销数据的准确性
-        # 这里选择中断以避免潜在问题
-        return None
-
-    # 3. 使用加载的筛选条件过滤渠道
-    filtered_channels = tool_instance.filter_channels(all_channels, filters_config)
-    if not filtered_channels:
-        logging.info("根据更新配置的筛选条件，没有匹配的渠道，无需保存撤销数据。")
-        return None
-
-    # 4. 获取这些过滤后渠道的当前详细状态 (带并发和间隔控制)
-    channel_ids_to_fetch = [c.get('id') for c in filtered_channels if c.get('id')]
-    if not channel_ids_to_fetch:
-        logging.warning("过滤后的渠道缺少 ID，无法获取详细信息以保存撤销数据。")
-        return None
-
-
-    # 从 script_config 获取并发和间隔设置
-    script_cfg = tool_instance.script_config # 实例应该已经有 script_config
-    max_concurrent = script_cfg.get('api_settings', {}).get('max_concurrent_requests', 1) # 默认1防止出错
-    request_interval_ms = script_cfg.get('api_settings', {}).get('request_interval_ms', 0)
-    interval_seconds = request_interval_ms / 1000.0 if request_interval_ms > 0 else 0
-
-    semaphore = asyncio.Semaphore(max_concurrent)
     original_channels_data = []
-    fetch_errors = 0
 
-    logging.info(f"[Undo] 开始逐个获取 {len(channel_ids_to_fetch)} 个渠道的详细状态 (并发: {max_concurrent}, 间隔: {interval_seconds:.3f}s)...")
-    for idx, channel_id in enumerate(channel_ids_to_fetch):
-        logging.info(f"[Undo] 处理渠道 {idx+1}/{len(channel_ids_to_fetch)}: ID {channel_id}")
-        async with semaphore:
-            if interval_seconds > 0:
-                # 此处 debug 日志可能因 INFO 级别而不显示，但 sleep 会执行
-                logging.debug(f"[Undo] 等待 {interval_seconds:.3f} 秒后获取详情 (ID: {channel_id})")
-                await asyncio.sleep(interval_seconds)
-            
-            logging.info(f"[Undo] 正在获取渠道 ID: {channel_id} 的详细信息...")
-            try:
-                details, message = await tool_instance.get_channel_details(channel_id)
-                if isinstance(details, dict):
-                    logging.info(f"[Undo] 成功获取渠道 ID: {channel_id} 的状态。原始消息: {message}")
-                    original_channels_data.append(details)
-                else:
-                    logging.error(f"[Undo] 获取渠道 ID: {channel_id} 的原始状态失败: {message}")
-                    fetch_errors += 1
-            except Exception as e:
-                 logging.error(f"[Undo] 获取渠道 ID: {channel_id} 的原始状态时发生异常: {e}", exc_info=True)
-                 fetch_errors += 1
-    
-    logging.info(f"[Undo] 所有渠道详细状态获取尝试完毕。成功: {len(original_channels_data)}, 失败: {fetch_errors}")
+    if channels_to_save:
+        logging.info(f"已提供 {len(channels_to_save)} 个渠道的预取数据，将直接使用。")
+        # 确保数据是深拷贝，以防外部修改
+        original_channels_data = copy.deepcopy(channels_to_save)
+    elif update_config_path:
+        logging.info(f"将使用更新配置 '{update_config_path}' 来查找和获取渠道状态。")
+        tool_instance = _get_tool_instance(api_type, api_config_path, update_config_path)
+        if not tool_instance:
+            logging.error("无法获取工具实例，无法保存撤销数据。")
+            return None
 
-    if fetch_errors > 0:
-         logging.warning(f"[Undo] {fetch_errors} 个渠道的原始状态获取失败，这些渠道将无法通过此文件撤销。")
+        # 1. 获取所有渠道
+        all_channels, get_list_message = await tool_instance.get_all_channels()
+        if all_channels is None:
+            logging.error(f"获取所有渠道失败: {get_list_message}，无法保存撤销数据。")
+            return None
+        if not all_channels:
+            logging.warning(f"渠道列表为空 ({get_list_message})，无需保存撤销数据。")
+            return None
+
+        # 2. 加载更新配置以获取筛选条件
+        try:
+            with open(update_config_path, 'r', encoding='utf-8') as f:
+                from yaml import safe_load
+                update_config = safe_load(f)
+            if not update_config:
+                raise ValueError("更新配置文件为空或无效")
+            filters_config = update_config.get('filters')
+            logging.debug(f"[Undo] 从 {Path(update_config_path).name} 加载筛选条件: {filters_config}")
+        except Exception as e:
+            logging.error(f"[Undo] 加载或解析更新配置文件 '{Path(update_config_path).name}' 失败: {e}，无法准确过滤渠道以保存撤销数据。")
+            return None
+
+        # 3. 使用加载的筛选条件过滤渠道
+        filtered_channels = tool_instance.filter_channels(all_channels, filters_config)
+        if not filtered_channels:
+            logging.info("根据更新配置的筛选条件，没有匹配的渠道，无需保存撤销数据。")
+            return None
+
+        # 4. 获取过滤后渠道的详细状态
+        channel_ids_to_fetch = [c.get('id') for c in filtered_channels if c.get('id')]
+        if not channel_ids_to_fetch:
+            logging.warning("过滤后的渠道缺少 ID，无法获取详细信息以保存撤销数据。")
+            return None
+        
+        script_cfg = tool_instance.script_config
+        max_concurrent = script_cfg.get('api_settings', {}).get('max_concurrent_requests', 1)
+        request_interval_ms = script_cfg.get('api_settings', {}).get('request_interval_ms', 0)
+        interval_seconds = request_interval_ms / 1000.0 if request_interval_ms > 0 else 0
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+        fetch_errors = 0
+        
+        logging.info(f"[Undo] 开始逐个获取 {len(channel_ids_to_fetch)} 个渠道的详细状态 (并发: {max_concurrent}, 间隔: {interval_seconds:.3f}s)...")
+        tasks = []
+        for channel_id in channel_ids_to_fetch:
+            async def fetch_details(cid):
+                async with semaphore:
+                    if interval_seconds > 0:
+                        await asyncio.sleep(interval_seconds)
+                    logging.info(f"[Undo] 正在获取渠道 ID: {cid} 的详细信息...")
+                    try:
+                        details, message = await tool_instance.get_channel_details(cid)
+                        if isinstance(details, dict):
+                            logging.info(f"[Undo] 成功获取渠道 ID: {cid} 的状态。")
+                            return details
+                        else:
+                            logging.error(f"[Undo] 获取渠道 ID: {cid} 的原始状态失败: {message}")
+                            return None
+                    except Exception as e:
+                        logging.error(f"[Undo] 获取渠道 ID: {cid} 的原始状态时发生异常: {e}", exc_info=True)
+                        return None
+            tasks.append(fetch_details(channel_id))
+        
+        results = await asyncio.gather(*tasks)
+        original_channels_data = [res for res in results if res is not None]
+        fetch_errors = len(results) - len(original_channels_data)
+        
+        logging.info(f"[Undo] 所有渠道详细状态获取尝试完毕。成功: {len(original_channels_data)}, 失败: {fetch_errors}")
+
+        if fetch_errors > 0:
+            logging.warning(f"[Undo] {fetch_errors} 个渠道的原始状态获取失败，这些渠道将无法通过此文件撤销。")
+
+    else:
+        logging.error("必须提供 'channels_to_save' 或 'update_config_path' 之一来保存撤销数据。")
+        return None
 
     if not original_channels_data:
-        logging.error("未能成功获取任何匹配渠道的原始状态，无法保存撤销数据。")
+        logging.error("未能成功获取或提供任何匹配渠道的原始状态，无法保存撤销数据。")
         return None
 
-    # 4. 保存到文件
+    # 5. 保存到文件
     # 使用已在顶部导入的 UNDO_DIR
     undo_dir = UNDO_DIR
     try:

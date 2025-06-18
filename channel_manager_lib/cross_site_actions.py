@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, List, Dict, Any, Optional # 用于类型提示
 
 # 从项目模块导入
 from channel_manager_lib.undo_utils import save_undo_data
+from oneapi_tool_utils.data_helpers import normalize_to_set, normalize_to_dict # 导入辅助函数
 
 if TYPE_CHECKING:
     # 避免循环导入，仅用于类型提示
@@ -91,13 +92,13 @@ async def execute_copy_fields(
     try:
         for field, value in source_data_to_copy.items():
             if field in LIST_FIELDS:
-                normalized_source_data[field] = source_tool._normalize_to_set(value)
+                normalized_source_data[field] = normalize_to_set(value)
             elif field in DICT_FIELDS:
-                normalized_source_data[field] = source_tool._normalize_to_dict(value, field, source_name_for_log)
+                normalized_source_data[field] = normalize_to_dict(value, field, source_name_for_log)
             # else: 简单类型不需要预标准化
-    except AttributeError as e:
-        logging.error(f"标准化源渠道字段时缺少方法: {e}", exc_info=True)
-        print(f"错误：代码内部错误，源工具缺少标准化方法 ({e})。无法准备更新计划。")
+    except Exception as norm_e:
+        logging.error(f"标准化源渠道字段时出错: {norm_e}", exc_info=True)
+        print(f"错误：标准化源渠道数据时出错，无法准备更新计划。")
         return 1
     except Exception as norm_e:
         logging.error(f"标准化源渠道字段时出错: {norm_e}", exc_info=True)
@@ -126,7 +127,7 @@ async def execute_copy_fields(
             try:
                 # --- 列表字段处理 ---
                 if field in LIST_FIELDS:
-                    current_target_set = target_tool._normalize_to_set(original_target_value)
+                    current_target_set = normalize_to_set(original_target_value)
                     source_set = normalized_source_data.get(field, set()) # 使用标准化的源值
                     resulting_set = current_target_set
 
@@ -154,7 +155,7 @@ async def execute_copy_fields(
 
                 # --- 字典字段处理 ---
                 elif field in DICT_FIELDS:
-                    current_target_dict = target_tool._normalize_to_dict(original_target_value, field, target_name_for_log)
+                    current_target_dict = normalize_to_dict(original_target_value, field, target_name_for_log)
                     source_dict = normalized_source_data.get(field, {}) # 使用标准化的源值
                     resulting_dict = current_target_dict.copy()
 
@@ -292,13 +293,18 @@ async def execute_copy_fields(
         if original_targets_for_undo:
             try:
                 target_config_name = target_config_path.stem
-                target_api_type = target_tool.get_api_type() # 从工具实例获取 API 类型
-                logging.info(f"尝试为目标站点 '{target_config_name}' (类型: {target_api_type}) 保存 {len(original_targets_for_undo)} 条撤销数据...")
-                await save_undo_data(target_api_type, target_config_name, original_targets_for_undo)
-                logging.info(f"为目标站点 '{target_config_name}' 成功保存撤销数据。")
-                print(f"\n已为目标站点 '{target_config_name}' 保存 {len(original_targets_for_undo)} 条撤销信息。")
+                target_api_type = target_tool.get_api_type()
+                logging.info(f"尝试为目标站点 '{target_config_path.stem}' (类型: {target_api_type}) 保存 {len(original_targets_for_undo)} 条撤销数据...")
+                # 调用更新后的 save_undo_data，直接传递预取的数据
+                await save_undo_data(
+                    api_type=target_api_type,
+                    api_config_path=target_config_path, # 传递完整的路径
+                    channels_to_save=original_targets_for_undo
+                )
+                logging.info(f"为目标站点 '{target_config_path.stem}' 成功保存撤销数据。")
+                print(f"\n已为目标站点 '{target_config_path.stem}' 保存 {len(original_targets_for_undo)} 条撤销信息。")
             except Exception as undo_e:
-                logging.error(f"为目标站点 '{target_config_name}' 保存撤销数据时出错: {undo_e}", exc_info=True)
+                logging.error(f"为目标站点 '{target_config_path.stem}' 保存撤销数据时出错: {undo_e}", exc_info=True)
                 print(f"\n警告：未能保存撤销数据！如果继续执行更新，将无法撤销。")
                 # 撤销失败时，再次向用户确认是否继续
                 if not args.yes:
@@ -318,7 +324,11 @@ async def execute_copy_fields(
                     logging.warning("自动确认模式：撤销数据保存失败，但继续执行更新。")
 
         # --- 并发执行更新 ---
-        concurrency_limit = script_config.get('concurrency_limit', 5) # 从 script_config 获取并发数，默认 5
+        api_settings = script_config.get('api_settings', {})
+        concurrency_limit = api_settings.get('max_concurrent_requests', 5)
+        request_interval_ms = api_settings.get('request_interval_ms', 0)
+        interval_seconds = request_interval_ms / 1000.0 if request_interval_ms > 0 else 0
+        
         semaphore = Semaphore(concurrency_limit)
         update_tasks = []
 
@@ -328,6 +338,11 @@ async def execute_copy_fields(
             target_name = item['target_name']
             payload = item['payload'] # 包含 ID 和变更字段
             async with semaphore: # 控制并发
+                # 在发送请求前，如果配置了间隔，则等待
+                if interval_seconds > 0:
+                    logging.debug(f"等待 {interval_seconds:.3f} 秒后更新目标 ID: {target_id}...")
+                    await asyncio.sleep(interval_seconds)
+
                 logging.info(f"开始更新目标渠道 ID: {target_id}, Name: '{target_name}'...")
                 logging.debug(f"发送到 API 的载荷 (ID: {target_id}): {json.dumps(payload, indent=2, ensure_ascii=False)}")
                 try:
@@ -348,7 +363,7 @@ async def execute_copy_fields(
             update_tasks.append(update_single_channel_task(item))
 
         # 执行任务并等待结果
-        print(f"\n开始并发更新 {len(update_tasks)} 个目标渠道 (并发数: {concurrency_limit})...")
+        print(f"\n开始并发更新 {len(update_tasks)} 个目标渠道 (并发数: {concurrency_limit}, 请求间隔: {interval_seconds:.3f}s)...")
         results = await asyncio.gather(*update_tasks) # results 是 (success, id, name, reason) 的列表
         print("所有更新任务已完成。")
 
@@ -404,15 +419,14 @@ async def execute_compare_fields(
         for field in fields_to_compare:
             source_value = source_channel_data.get(field)
             if field in LIST_FIELDS:
-                normalized_source_data[field] = source_tool._normalize_to_set(source_value)
+                normalized_source_data[field] = normalize_to_set(source_value)
             elif field in DICT_FIELDS:
-                normalized_source_data[field] = source_tool._normalize_to_dict(source_value, field, source_name_for_log)
+                normalized_source_data[field] = normalize_to_dict(source_value, field, source_name_for_log)
             else:
                 normalized_source_data[field] = source_value # 简单值直接用
-    except AttributeError as e:
-        logging.error(f"标准化源渠道字段时缺少方法: {e}", exc_info=True)
-        print(f"错误：代码内部错误，源工具缺少标准化方法 ({e})。无法进行比较。")
-        # 在比较函数中，遇到错误不直接返回1，而是打印错误并继续（如果可能）或标记为差异
+    except Exception as norm_e:
+        logging.error(f"标准化源渠道字段时出错: {norm_e}", exc_info=True)
+        print(f"错误：标准化源渠道数据时出错，无法进行比较。")
         return # 无法标准化源，无法继续比较
     except Exception as norm_e:
         logging.error(f"标准化源渠道字段时出错: {norm_e}", exc_info=True)
@@ -434,7 +448,7 @@ async def execute_compare_fields(
             try:
                 # 标准化目标值并比较
                 if field in LIST_FIELDS:
-                    target_set = target_tool._normalize_to_set(target_value)
+                    target_set = normalize_to_set(target_value)
                     if normalized_source_value == target_set:
                         pass # 相同则不打印
                     else:
@@ -444,7 +458,7 @@ async def execute_compare_fields(
                         print(f"      源: {','.join(sorted(list(normalized_source_value or set())))}") # 处理 None
                         print(f"      目标: {','.join(sorted(list(target_set or set())))}") # 处理 None
                 elif field in DICT_FIELDS:
-                    target_dict = target_tool._normalize_to_dict(target_value, field, target_name_for_log)
+                    target_dict = normalize_to_dict(target_value, field, target_name_for_log)
                     if normalized_source_value == target_dict:
                         pass # 相同则不打印
                     else:

@@ -1,233 +1,59 @@
-# 筛选条件: 用于选择要执行更新操作的目标渠道
-# 注意: 所有启用的筛选器和排除器都会生效。
+# update_config.example
+# ========================
+# 用于配置单站点批量更新操作。
+# ========================
+
+# 筛选条件: 用于选择要执行更新操作的目标渠道。
+# 注意: 所有启用的筛选器都会生效。
 filters:
-  # --- 包含性筛选器 ---
-  # 如果启用了以下任何一个过滤器，渠道必须满足该过滤器中的 *至少一个* 条件才会被考虑。
+  # (常用) 按名称部分匹配。例如，更新所有名称包含 "Azure" 的渠道。
+  name_filters: ["Azure"]
 
-  # 渠道名称过滤器: 列表中的字符串会被用于 *部分匹配* 渠道名称 (区分大小写)。
-  # 例如: ["Azure", "Backup"] 会匹配名称包含 "Azure" 或 "Backup" 的渠道。
-  name_filters: ["Example Channel", "Test"]
-
-  # 渠道分组过滤器: 列表中的字符串会与渠道所属的分组进行 *完全匹配*。
-  # 渠道可以属于多个分组 (逗号分隔)，只要匹配其中一个即可。
-  # 例如: ["default", "vip"] 会匹配属于 "default" 或 "vip" 分组的渠道。
-  group_filters: ["default"]
-
-  # 支持模型过滤器: 列表中的模型名称会与渠道支持的模型列表进行 *完全匹配*。
-  # 渠道支持的模型也是列表 (逗号分隔)，只要包含列表中的任意一个模型即可。
-  # 例如: ["gpt-4", "claude-3"] 会匹配支持 "gpt-4" 或 "claude-3" 的渠道。
-  model_filters: ["gpt-4", "claude-3-opus"]
-
-  # 渠道标签过滤器: 列表中的标签会与渠道设置的标签进行 *完全匹配*。
-  # 渠道标签也是列表 (逗号分隔)，只要包含列表中的任意一个标签即可。
-  tag_filters: ["Official"]
-
-  # 渠道类型过滤器: 列表中的数字会与渠道的类型 ID 进行 *完全匹配*。
-  # 常见的类型 ID (可能因 One API 版本而异):
-  # 0: OpenAI, 1: Anthropic Claude, 2: Google PaLM/Gemini, 3: Zhipu ChatGLM, 4: Baidu Wenxin,
-  # 5: iFlytek Spark, 6: Alibaba Qwen, 7: Baichuan, 8: 自定义, 9: Azure OpenAI, ...
-  type_filters: [0, 9] # 例如，只筛选 OpenAI 和 Azure OpenAI 类型的渠道
-
-  # API Key 精确匹配过滤器: 使用渠道的 API Key进行 *完全匹配*。
-  # 主要用于精确定位某个特定 Key 的渠道，特别是在 voapi 实例中。
-  # 如果提供此过滤器，其他包含性和排除性筛选器通常可以留空或不启用。
-  # key_filter: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # 示例：替换为实际的 API Key
-
-  # --- 排除性筛选器 ---
-  # 如果渠道满足以下任何一个排除器中的 *任何一个* 条件，则该渠道将被 *直接排除*，即使它满足包含性筛选器。
-
-  # 排除名称过滤器: 列表中的字符串会被用于 *部分匹配* 渠道名称 (区分大小写)。
-  # 如果渠道名称包含此列表中的任何一个字符串，则该渠道将被排除。
-  # 例如: ["_bak", "_copy"] 会排除名称包含 "_bak" 或 "_copy" 的渠道。
-  exclude_name_filters: ["_复制", "_backup"]
-
-  # 排除分组过滤器: 列表中的字符串会与渠道所属的分组进行 *完全匹配*。
-  # 如果渠道属于此列表中的任何一个分组，则该渠道将被排除。
-  exclude_group_filters: ["test", "deprecated"]
-
-  # 排除模型过滤器: 列表中的模型名称会与渠道支持的模型列表进行 *完全匹配*。
-  # 如果渠道支持此列表中的任何一个模型，则该渠道将被排除。
-  exclude_model_filters: ["gpt-3.5-turbo-instruct"]
-
-  # 排除模型映射键过滤器: 列表中的字符串会与渠道模型映射中的 *键* 进行 *完全匹配*。
-  # 如果渠道的模型映射包含此列表中的任何一个键，则该渠道将被排除。
-  exclude_model_mapping_keys: ["gpt-3.5-turbo"]
-
-  # 排除覆盖参数键过滤器: 列表中的字符串会与渠道覆盖参数中的 *键* 进行 *完全匹配*。
-  # 如果渠道的覆盖参数包含此列表中的任何一个键，则该渠道将被排除。
-  exclude_override_params_keys: ["temperature"]
+  # (常用) 按分组完全匹配。例如，更新所有属于 "default" 分组的渠道。
+  # group_filters: ["default"]
+  
+  # (常用) 按渠道类型ID完全匹配。例如，更新所有 "OpenAI" 类型的渠道。
+  # type_filters: [0]
 
   # --- 筛选逻辑模式 ---
-  # 定义多个 *包含性* 过滤器类型之间的逻辑关系 (排除性过滤器总是优先且独立生效)。
-  # "any": (默认) 只要渠道满足 *至少一个* 已启用的包含性过滤器类型 (name_filters, group_filters 等) 中的条件即可。
-  # "all": (暂未完全实现) 要求渠道必须 *同时满足所有* 已启用的包含性过滤器类型的条件。
-  # "exact": (未在示例中使用，但脚本支持) 用于字符串匹配，要求值与过滤器列表中的 *某个* 字符串完全相等。
-  # "none": (未在示例中使用，但脚本支持) 用于字符串匹配，要求值 *不包含* 过滤器列表中的 *任何* 字符串。
+  # "any": (默认) 满足 *至少一个* 过滤器类型即可 (例如，名称匹配 或 分组匹配)。
+  # "all": (暂未完全实现) 必须 *同时满足所有* 启用的过滤器类型。
   match_mode: "any"
+  
+  # --- 排除性筛选器 (可选) ---
+  # 如果渠道名称包含 "_bak" 或 "_test"，则排除。
+  # exclude_name_filters: ["_bak", "_test"]
 
-# 要应用的更新: 只有 enabled 设置为 true 的项才会被应用到筛选出的渠道上
+
+# 要应用的更新: 只有 enabled 设置为 true 的项才会被应用。
 updates:
-  # 更新渠道名称 (支持 overwrite 和 regex_replace 模式)
-  name:
-    enabled: false
-    # --- 模式 1: overwrite (默认) ---
-    # mode: "overwrite"
-    # value: "New Channel Name" # 提供新的渠道名称字符串
-
-    # --- 模式 2: regex_replace ---
-    # 使用正则表达式查找并替换名称中的部分内容。
-    mode: "regex_replace"
-    value:
-      # pattern: 要查找的正则表达式模式。
-      # 例如: "Prefix-" 查找并移除开头的 "Prefix-"
-      # 例如: "\\s*\\(old\\)" 查找并移除末尾的 " (old)" (注意需要转义括号)
-      pattern: "Prefix-"
-      # replacement: 用于替换匹配项的字符串。
-      # 可以使用反向引用，如 \1, \2 或 $1, $2 (取决于 Python re 模块)。
-      # 设置为空字符串 "" 表示删除匹配项。
-      replacement: ""
-
-  # 更新渠道类型 (谨慎使用，可能会影响渠道行为)
-  type:
-    enabled: false
-    # mode: "overwrite" # (默认) 类型只能覆盖
-    value: 0 # 提供新的渠道类型 ID (数字)
-
-  # 更新模型列表 (支持多种模式)
+  # 示例1：批量追加模型到现有列表
   models:
     enabled: false # 设置为 true 以启用此更新
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的模型列表。
-    # mode: "append"    # 追加 value 中的模型到现有列表 (去重)。
-    # mode: "remove"    # 从现有列表中移除 value 中指定的模型。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个模型名称的列表。脚本会根据 mode 进行操作，并最终转换为逗号分隔的字符串提交给 API。
-    value: ["gpt-4-turbo", "gpt-4o", "gemini-pro"]
+    mode: "append" # 追加模式
+    value: ["gpt-4-turbo", "gpt-4o"]
 
-  # 更新分组 (支持多种模式)
+  # 示例2：批量覆盖分组设置
   group:
     enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的分组设置。
-    # mode: "append"    # 追加 value 中的分组到现有列表 (去重)。
-    # mode: "remove"    # 从现有列表中移除 value 中指定的分组。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个或多个分组名称，用逗号分隔或列表形式。
-    value: "vip,svip" # 或者 ["vip", "svip"]
+    mode: "overwrite" # 覆盖模式
+    value: ["vip"] # 目标渠道的分组将被设置为 "vip"
 
-  # 更新模型映射 (支持多种模式)
+  # 示例3：批量更新模型映射 (合并模式)
   model_mapping:
     enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的模型重定向规则。
-    # mode: "merge"     # 合并 value 中的键值对到现有映射 (更新或添加)。
-    # mode: "delete_keys" # 从现有映射中删除 value (列表形式) 中指定的键。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个字典。
+    mode: "merge" # 合并模式：添加或更新键值对，不影响已有映射
     value:
-      gpt-3.5-turbo: gpt-4-turbo # 将所有 gpt-3.5-turbo 请求映射到 gpt-4-turbo
-      gpt-3.5-turbo-16k: gpt-4-turbo
-
-  # 更新标签 (支持多种模式)
-  tag:
-    enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的标签。
-    # mode: "append"    # 追加 value 中的标签到现有列表 (去重)。
-    # mode: "remove"    # 从现有列表中移除 value 中指定的标签。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个或多个标签，用逗号分隔或列表形式。
-    value: "Internal,Stable,High-Priority" # 或者 ["Internal", "Stable", "High-Priority"]
-
-  # 更新优先级: 设置渠道的调度优先级，数字越小优先级越高。
+      gpt-3.5-turbo: gpt-4 # 将 gpt-3.5-turbo 请求重定向到 gpt-4
+      
+  # 示例4：批量更新优先级
   priority:
     enabled: false
-    # mode: "overwrite" # (默认) 优先级只能覆盖
-    value: 10 # 提供一个整数。
+    mode: "overwrite"
+    value: 10 # 数字越小，优先级越高
 
-  # 更新权重: 设置渠道的负载均衡权重，数字越大被选中的概率越高。
-  weight:
-    enabled: false
-    # mode: "overwrite" # (默认) 权重只能覆盖
-    value: 5 # 提供一个整数。
-
-  # 更新额外设置 (通常是 JSON 格式，支持多种模式)
-  setting:
-    enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道的 "设置" 字段。
-    # mode: "merge"     # 合并 value 中的键值对到现有设置 (更新或添加)。
-    # mode: "delete_keys" # 从现有设置中删除 value (列表形式) 中指定的键。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个字典。
-    value:
-      temperature: 0.8
-
-  # 更新测试模型: 设置用于测试渠道可用性的模型名称。
-  test_model:
-    enabled: false
-    # mode: "overwrite" # (默认) 测试模型只能覆盖
-    value: "gpt-3.5-turbo" # 提供一个模型名称字符串。
-
-  # 更新自动禁用状态: 设置渠道是否在连续失败后自动禁用。
-  auto_ban:
-    enabled: false
-    # mode: "overwrite" # (默认) 自动禁用状态只能覆盖
-    # 0: 禁用自动禁用, 1: 启用自动禁用。
-    value: 1 # 示例：启用自动禁用
-
-  # 更新 Base URL / 代理: 覆盖渠道的上游地址或代理地址。
-  base_url:
-    enabled: false
-    # mode: "overwrite" # (默认) Base URL 只能覆盖
-    # 提供一个 URL 字符串。设置为空字符串 "" 通常表示移除 Base URL。
-    value: "https://new-proxy.example.com"
-
-  # 更新状态码映射 (支持多种模式)
-  status_code_mapping:
-    enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道的状态码重映射规则。
-    # mode: "merge"     # 合并 value 中的键值对到现有映射 (更新或添加)。
-    # mode: "delete_keys" # 从现有映射中删除 value (列表形式) 中指定的键。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个字典，键是上游返回的状态码 (字符串)，值是希望 One API 返回给客户端的状态码 (数字)。
-    value:
-      "429": 503 # 将上游的 429 (Too Many Requests) 映射为 503 (Service Unavailable)
-      "401": 403 # 将上游的 401 (Unauthorized) 映射为 403 (Forbidden)
-
-  # 更新渠道状态: 设置渠道的启用/禁用状态。
+  # 示例5：批量启用渠道
   status:
     enabled: false
-    # mode: "overwrite" # (默认) 状态只能覆盖
-    # 1: 启用, 2: 手动禁用, 3: 自动禁用 (通常不应手动设置为 3)。
-    value: 1
-
-  # 更新请求头 (Headers / 填入模板) (支持多种模式)
-  headers:
-    enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的请求头设置。
-    # mode: "merge"     # 合并 value 中的键值对到现有请求头 (更新或添加)。
-    # mode: "delete_keys" # 从现有请求头中删除 value (列表形式) 中指定的键。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个字典。
-    value:
-      Authorization: "Bearer YOUR_SPECIFIC_TOKEN"
-      X-Custom-Info: "some_value"
-
-  # 更新 OpenAI Organization: 设置 OpenAI 渠道的组织 ID。
-  openai_organization:
-    enabled: false
-    # mode: "overwrite" # (默认) 组织 ID 只能覆盖
-    value: "org-xxxxxxxxxxxx" # 提供你的 OpenAI Organization ID 字符串
-
-  # 更新覆盖参数 (Override Parameters / 参数覆盖) (支持多种模式)
-  # 注意: 在复制请求载荷中字段名为 param_override，但 UI 和通常习惯称为 override_params
-  # 我们在配置中使用 override_params，代码内部处理映射（如果 API 确实需要 param_override）
-  override_params:
-    enabled: false
-    # mode: "overwrite" # (默认) 完全覆盖渠道原有的参数覆盖设置。
-    # mode: "merge"     # 合并 value 中的键值对到现有参数 (更新或添加)。
-    # mode: "delete_keys" # 从现有参数中删除 value (列表形式) 中指定的键。
-    mode: "overwrite" # 示例：使用覆盖模式
-    # 提供一个字典。
-    value:
-      temperature: 0.5
-      top_p: 0.8
-
-  # ... 可以根据你的 One API 版本支持情况，添加其他可更新的字段。
-  # 例如: response_time_limit 等。
+    mode: "overwrite"
+    value: 1 # 1: 启用, 2: 手动禁用
