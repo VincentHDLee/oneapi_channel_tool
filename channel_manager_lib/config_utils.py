@@ -114,8 +114,7 @@ DEFAULT_SCRIPT_CONFIG = {
         'request_interval_ms': 100, # 新增：默认请求间隔 (毫秒)
     },
     'api_page_sizes': {
-        'newapi': 100, # 默认 newapi 分页大小
-        'voapi': 40   # 默认 voapi 分页大小 (根据实际测试调整)
+        'newapi': 100 # 默认 newapi 分页大小
     },
     'logging': { # 新增日志配置部分
         'level': "INFO" # 默认日志级别

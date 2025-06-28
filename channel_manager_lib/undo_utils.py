@@ -15,7 +15,6 @@ from channel_manager_lib.config_utils import UNDO_DIR, UPDATE_CONFIG_BACKUP_DIR,
 # oneapi_tool_utils 位于包外，保持不变
 from oneapi_tool_utils.channel_tool_base import ChannelToolBase
 from oneapi_tool_utils.newapi_channel_tool import NewApiChannelTool
-from oneapi_tool_utils.voapi_channel_tool import VoApiChannelTool
 
 # 类型提示，避免循环导入问题
 if TYPE_CHECKING:
@@ -24,14 +23,12 @@ if TYPE_CHECKING:
 
 from channel_manager_lib.config_utils import load_script_config # 导入用于获取默认值的函数
 
-def _get_tool_instance(api_type: str, api_config_path: str | Path, update_config_path: str | Path | None = None, script_config: dict | None = None) -> 'ChannelToolBase | None':
+def _get_tool_instance(api_config_path: str | Path, update_config_path: str | Path | None = None, script_config: dict | None = None) -> 'ChannelToolBase | None':
     """
-    根据 api_type 获取相应的工具实例。
+    获取 NewApiChannelTool 实例。
     这是一个辅助函数，主要供撤销逻辑和 cli_handler 内部使用。
-    其他模块（如 single_site_handler）可能需要自己的实例化逻辑。
 
     Args:
-        api_type (str): API 类型 ('newapi' 或 'voapi').
         api_config_path (str | Path): 连接配置文件的路径。
         update_config_path (str | Path | None): 更新配置文件的路径 (可选).
         script_config (dict | None): 加载后的脚本通用配置字典 (可选)。
@@ -49,27 +46,19 @@ def _get_tool_instance(api_type: str, api_config_path: str | Path, update_config
         if script_config is None:
             script_config = load_script_config()
 
-        if api_type == "newapi":
-            # 将 script_config 传递给构造函数
-            return NewApiChannelTool(api_config_path, update_config_path, script_config=script_config)
-        elif api_type == "voapi":
-            # 将 script_config 传递给构造函数
-            return VoApiChannelTool(api_config_path, update_config_path, script_config=script_config)
-        else:
-            logging.error(f"未知的 API 类型: {api_type}")
-            return None
+        # 直接返回 NewApiChannelTool 实例
+        return NewApiChannelTool(api_config_path, update_config_path, script_config=script_config)
     except ValueError as e: # 配置加载错误 (假设 ChannelTool 初始化时可能抛出)
-        logging.error(f"为 API 类型 '{api_type}' 加载配置 '{api_config_path}' 时出错: {e}")
+        logging.error(f"加载配置 '{api_config_path}' 时出错: {e}")
         return None
     except FileNotFoundError as e:
         logging.error(f"配置文件未找到: {e}")
         return None
     except Exception as e:
-        logging.error(f"创建 API 类型 '{api_type}' 的工具实例时发生意外错误: {e}", exc_info=True)
+        logging.error(f"创建工具实例时发生意外错误: {e}", exc_info=True)
         return None
 
 async def save_undo_data(
-    api_type: str,
     api_config_path: str | Path,
     update_config_path: str | Path | None = None,
     channels_to_save: list[dict] | None = None
@@ -79,7 +68,6 @@ async def save_undo_data(
     可以接收预先过滤好的渠道列表，或者通过 update_config_path 自行过滤。
 
     Args:
-        api_type (str): API 类型 ('newapi' 或 'voapi').
         api_config_path (str | Path): 连接配置文件的路径。
         update_config_path (str | Path, optional): 更新配置文件的路径. 如果提供了 channels_to_save, 则此项可选.
         channels_to_save (list[dict], optional): 预先获取和过滤的渠道详细数据列表.
@@ -96,7 +84,7 @@ async def save_undo_data(
         original_channels_data = copy.deepcopy(channels_to_save)
     elif update_config_path:
         logging.info(f"将使用更新配置 '{update_config_path}' 来查找和获取渠道状态。")
-        tool_instance = _get_tool_instance(api_type, api_config_path, update_config_path)
+        tool_instance = _get_tool_instance(api_config_path, update_config_path)
         if not tool_instance:
             logging.error("无法获取工具实例，无法保存撤销数据。")
             return None
@@ -193,7 +181,7 @@ async def save_undo_data(
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S%f")[:-3]
     # 确保 api_config_path 是 Path 对象以使用 .stem
     config_name = Path(api_config_path).stem
-    undo_filename = f"undo_{api_type}_{config_name}_{timestamp}.json"
+    undo_filename = f"undo_{config_name}_{timestamp}.json"
     undo_file_path = undo_dir / undo_filename
 
     try:
@@ -205,13 +193,12 @@ async def save_undo_data(
         logging.error(f"保存撤销文件 '{undo_file_path}' 失败: {e}")
         return None
 
-async def perform_undo(api_type: str, api_config_path: str | Path, undo_file_path: str | Path, auto_confirm: bool = False) -> int:
+async def perform_undo(api_config_path: str | Path, undo_file_path: str | Path, auto_confirm: bool = False) -> int:
     """
     执行撤销操作。
     读取 undo 文件，并将其中记录的渠道恢复到原始状态。
 
     Args:
-        api_type (str): API 类型 ('newapi' 或 'voapi').
         api_config_path (str | Path): 连接配置文件的路径。
         undo_file_path (str | Path): 要使用的撤销文件的路径。
         auto_confirm (bool): 是否跳过用户确认。
@@ -245,7 +232,7 @@ async def perform_undo(api_type: str, api_config_path: str | Path, undo_file_pat
         return 1
 
     # 2. 获取工具实例
-    tool_instance = _get_tool_instance(api_type, api_config_path) # 撤销时不需要 update_config
+    tool_instance = _get_tool_instance(api_config_path) # 撤销时不需要 update_config
     if not tool_instance:
         logging.error("无法获取工具实例，无法执行撤销。")
         print("错误：无法初始化 API 工具，无法执行撤销。")
@@ -367,13 +354,12 @@ def find_latest_undo_file() -> Path | None:
         logging.error(f"查找最新撤销文件时出错: {e}", exc_info=True)
         return None
 
-def find_latest_undo_file_for(config_name: str, api_type: str) -> Path | None:
+def find_latest_undo_file_for(config_name: str) -> Path | None:
     """
-    查找指定连接配置名称和 API 类型对应的最新撤销文件 (按修改时间)。
+    查找指定连接配置名称对应的最新撤销文件 (按修改时间)。
 
     Args:
         config_name (str): 连接配置文件的名称 (不含扩展名, e.g., "Astaur.cn").
-        api_type (str): API 类型 ('newapi' 或 'voapi').
 
     Returns:
         Path | None: 对应的最新撤销文件的路径，如果找不到则返回 None。
@@ -384,7 +370,7 @@ def find_latest_undo_file_for(config_name: str, api_type: str) -> Path | None:
         logging.debug(f"撤销目录 '{undo_dir}' 不存在。")
         return None
 
-    pattern = f"undo_{api_type}_{config_name}_*.json"
+    pattern = f"undo_{config_name}_*.json"
     try:
         undo_files = list(undo_dir.glob(pattern))
 
@@ -395,10 +381,10 @@ def find_latest_undo_file_for(config_name: str, api_type: str) -> Path | None:
         # 按修改时间排序，最新的在最后
         undo_files.sort(key=lambda f: f.stat().st_mtime)
         latest_file = undo_files[-1]
-        logging.debug(f"找到针对 '{config_name}' ({api_type}) 的最新撤销文件: {latest_file}")
+        logging.debug(f"找到针对 '{config_name}' 的最新撤销文件: {latest_file}")
         return latest_file
     except Exception as e:
-        logging.error(f"查找针对 '{config_name}' ({api_type}) 的最新撤销文件时出错: {e}", exc_info=True)
+        logging.error(f"查找针对 '{config_name}' 的最新撤销文件时出错: {e}", exc_info=True)
         return None
 
 def get_undo_summary(undo_file_path: Path) -> str | None:

@@ -23,12 +23,3 @@ api_token: "YOUR_ONE_API_ADMIN_TOKEN"
 # 如果不确定，可以保留默认值 '1' 或填入你的 One API 用户 ID。
 # 示例: "1" or "your_user_id"
 user_id: "YOUR_ONE_API_USER_ID_FOR_LOGS"
-
-# 目标 One API 实例的接口类型 (必需)
-# 用于指定脚本应使用哪种 API 协议与你的 One API 实例通信。
-# 有效值:
-#   "newapi": 适用于较新版本的 One API (通常指包含 /api/channel/ 接口的版本)。
-#   "voapi": 适用于较旧版本的 One API (通常指包含 /api/v1/channel/ 接口的版本)。
-# 请根据你的 One API 实例版本选择正确的值。
-# 示例: "newapi" 或 "voapi"
-api_type: "newapi" # 或 "voapi"

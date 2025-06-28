@@ -122,19 +122,13 @@ async def run_cross_site_operation(args: 'argparse.Namespace', action: str, scri
         target_config_path = Path(target_config_ref)
 
         source_conn_config = load_yaml_config(source_config_path)
-        source_api_type = source_conn_config.get('api_type')
-        if not source_api_type or source_api_type not in ["newapi", "voapi"]:
-            logging.error(f"错误：源连接配置文件 '{source_config_path}' 中缺少有效 'api_type' (newapi 或 voapi)。")
-            print(f"错误：源连接配置文件 '{Path(source_config_path).name}' 中缺少有效 'api_type'。")
-            return 1
+        if not source_conn_config:
+            raise ValueError(f"源连接配置 '{source_config_path}' 无效或为空。")
 
         target_conn_config = load_yaml_config(target_config_path)
-        target_api_type = target_conn_config.get('api_type')
-        if not target_api_type or target_api_type not in ["newapi", "voapi"]:
-            logging.error(f"错误：目标连接配置文件 '{target_config_path}' 中缺少有效 'api_type' (newapi 或 voapi)。")
-            print(f"错误：目标连接配置文件 '{Path(target_config_path).name}' 中缺少有效 'api_type'。")
-            return 1
-        logging.info(f"源 API 类型: {source_api_type} ({source_config_ref}), 目标 API 类型: {target_api_type} ({target_config_ref})")
+        if not target_conn_config:
+            raise ValueError(f"目标连接配置 '{target_config_path}' 无效或为空。")
+
         logging.info(f"源渠道筛选器: {source_filter_config}")
         logging.info(f"目标渠道筛选器: {target_filter_config}")
 
@@ -154,8 +148,8 @@ async def run_cross_site_operation(args: 'argparse.Namespace', action: str, scri
 
     # 4. 创建源/目标工具实例
     # _get_tool_instance 的第三个参数 update_config_path 在跨站操作中通常不需要，传 None
-    source_tool = _get_tool_instance(source_api_type, str(source_config_path), None, script_config=script_config)
-    target_tool = _get_tool_instance(target_api_type, str(target_config_path), None, script_config=script_config)
+    source_tool = _get_tool_instance(str(source_config_path), None, script_config=script_config)
+    target_tool = _get_tool_instance(str(target_config_path), None, script_config=script_config)
     if not source_tool or not target_tool:
         logging.error("无法创建源或目标工具实例。")
         print("错误：无法初始化 API 工具实例。")

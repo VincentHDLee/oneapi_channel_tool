@@ -195,14 +195,13 @@ def backup_update_config():
         logging.error(f"备份 '{source_path.name}' 时出错: {e}")
         return False
 
-async def run_single_site_operation(args, connection_config_path: str | Path, api_type: str, script_config: dict) -> int:
+async def run_single_site_operation(args, connection_config_path: str | Path, script_config: dict) -> int:
     """
     执行单站点更新的主流程：总是先模拟，然后询问是否执行实际更新。
 
     Args:
         args: 解析后的命令行参数对象 (需要包含 .yes, .clear_config)。
         connection_config_path (str | Path): 连接配置文件的路径。
-        api_type (str): API 类型 ('newapi' 或 'voapi').
         script_config (dict): 已加载的脚本通用配置。
 
     Returns:
@@ -218,7 +217,7 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
 
     # 使用导入的函数获取工具实例，并传递 script_config
     # 注意：这里传递 UPDATE_CONFIG_PATH，因为单站点操作需要它
-    tool_instance = _get_tool_instance(api_type, connection_config_path, UPDATE_CONFIG_PATH, script_config=script_config)
+    tool_instance = _get_tool_instance(connection_config_path, UPDATE_CONFIG_PATH, script_config=script_config)
     if not tool_instance:
         # 错误已在 _get_tool_instance 中记录
         print("错误：无法初始化 API 工具实例。")
@@ -374,7 +373,7 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
                      return 0
 
         # 使用导入的 save_undo_data
-        undo_file_path_saved = await save_undo_data(api_type, connection_config_path, UPDATE_CONFIG_PATH)
+        undo_file_path_saved = await save_undo_data(connection_config_path, UPDATE_CONFIG_PATH)
         if not undo_file_path_saved:
             logging.warning("未能成功保存撤销数据，如果执行更新将无法撤销。")
 
@@ -428,23 +427,22 @@ async def run_single_site_operation(args, connection_config_path: str | Path, ap
 
         # --- 4e. 提示撤销信息 ---
         if undo_file_path_saved:
-             logging.info(f"撤销数据已保存到: {undo_file_path_saved}")
-             print(f"\n提示：如果需要撤销本次操作，请使用 --undo 参数并选择相同的连接配置和 API 类型。")
-             print(f"撤销文件: {undo_file_path_saved.name}")
+            logging.info(f"撤销数据已保存到: {undo_file_path_saved}")
+            print(f"\n提示：如果需要撤销本次操作，请使用 --undo 参数并选择相同的连接配置。")
+            print(f"撤销文件: {undo_file_path_saved.name}")
         else:
-             logging.warning("本次操作未成功保存撤销数据，无法使用 --undo 撤销。")
+            logging.warning("本次操作未成功保存撤销数据，无法使用 --undo 撤销。")
 
     return exit_code
 
 
-async def run_test_and_enable_disabled(args, connection_config_path: str | Path, api_type: str, script_config: dict) -> int:
+async def run_test_and_enable_disabled(args, connection_config_path: str | Path, script_config: dict) -> int:
     """
     测试状态为“自动禁用”的渠道，并在测试通过后尝试启用它们。
 
     Args:
         args: 解析后的命令行参数对象 (需要包含 .yes)。
         connection_config_path (str | Path): 连接配置文件的路径。
-        api_type (str): API 类型 ('newapi' 或 'voapi').
         script_config (dict): 已加载的脚本通用配置。
 
     Returns:
@@ -459,13 +457,13 @@ async def run_test_and_enable_disabled(args, connection_config_path: str | Path,
     # 日志消息调整
     logging.info(f"使用传入的脚本配置，最大并发数: {max_concurrent}")
 
-    logging.info(f"开始执行 '测试并启用禁用渠道' 操作，目标配置: {connection_config_path}, API 类型: {api_type}")
+    logging.info(f"开始执行 '测试并启用禁用渠道' 操作，目标配置: {connection_config_path}")
     print(f"\n--- 开始测试并启用禁用渠道 ({Path(connection_config_path).name}) ---")
 
     # 1. 获取工具实例
     # 注意：测试功能不直接依赖 update_config.yaml，但 _get_tool_instance 需要它来处理某些情况
     # 传递 None 明确表示不使用更新配置，并传递 script_config
-    tool_instance = _get_tool_instance(api_type, connection_config_path, None, script_config=script_config)
+    tool_instance = _get_tool_instance(connection_config_path, None, script_config=script_config)
     if not tool_instance:
         print("错误：无法初始化 API 工具实例。")
         return 1

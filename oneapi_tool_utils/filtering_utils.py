@@ -164,9 +164,14 @@ def channel_matches_filters(channel, filters_config):
             if any(t in channel_tags for t in tag_filters): any_matched = True
         elif type_filters and channel.get('type') in type_filters: any_matched = True
         return any_matched
-
-    else: # "exact", "none" modes
-        logging.warning(f"在 'any'/'all' 之外的模式下使用多个过滤器类型，行为未定义，渠道 {channel_name} (ID: {channel_id}) 不匹配")
+    elif match_mode == "exact":
+        # "exact" 模式下，只处理 name_filters
+        if name_filters:
+            return match_filter(channel_name, name_filters, "exact")
+        else:
+            return False # 如果没有 name_filters，则无法进行 exact 匹配
+    else: # "none" mode
+        logging.warning(f"在 'any'/'all'/'exact' 之外的模式下使用多个过滤器类型，行为未定义，渠道 {channel_name} (ID: {channel_id}) 不匹配")
         return False
 
 

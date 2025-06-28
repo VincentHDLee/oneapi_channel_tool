@@ -466,22 +466,18 @@ async def main_cli_entry(args):
                 return 0
             connection_config_path_str = str(selected_path_obj)
 
-        # 从选择的配置加载 API 类型
+        # API 类型固定为 newapi
+        api_type = "newapi"
+        logging.info(f"API 类型固定为: {api_type}")
         try:
-            # 假设 load_yaml_config 在 config_utils 中实现并返回 dict 或 None
+            # 仍然加载配置以确保其有效
             api_config = load_yaml_config(connection_config_path_str)
-            if not api_config: # 处理 load_yaml_config 返回 None 的情况
+            if not api_config:
                  print(f"错误：无法加载连接配置文件 '{Path(connection_config_path_str).name}'。")
                  return 1
-            api_type = api_config.get('api_type')
-            if not api_type or api_type not in ["newapi", "voapi"]:
-                logging.error(f"错误：连接配置文件 '{connection_config_path_str}' 中缺少有效 'api_type' ('newapi' 或 'voapi')。")
-                print(f"错误：连接配置文件 '{Path(connection_config_path_str).name}' 中缺少有效 'api_type'。")
-                return 1
-            logging.info(f"从配置 '{Path(connection_config_path_str).name}' 加载 API 类型: {api_type}")
         except Exception as e: # 捕获可能的加载错误
-            logging.error(f"加载连接配置 '{connection_config_path_str}' 以获取 API 类型时出错: {e}", exc_info=True)
-            print(f"错误：无法从 '{Path(connection_config_path_str).name}' 加载 API 类型。请检查文件和日志。")
+            logging.error(f"加载连接配置 '{connection_config_path_str}' 时出错: {e}", exc_info=True)
+            print(f"错误：无法从 '{Path(connection_config_path_str).name}' 加载配置。请检查文件和日志。")
             return 1
 
         # --- 单站操作分发 (更新/撤销/查询) ---
@@ -495,10 +491,10 @@ async def main_cli_entry(args):
         # find_key mode is handled separately below, not in this interactive menu for single_site
         elif is_interactive_mode and operation_mode == 'single_site': # 纯交互模式下的菜单 (仅对 single_site)
             config_name = Path(connection_config_path_str).stem
-            latest_undo_file = find_latest_undo_file_for(config_name, api_type) # find_latest_undo_file_for 在 undo_utils
+            latest_undo_file = find_latest_undo_file_for(config_name) # find_latest_undo_file_for 在 undo_utils
 
             if latest_undo_file:
-                print(f"\n检测到针对 '{config_name}' ({api_type}) 的可撤销操作。")
+                print(f"\n检测到针对 '{config_name}' 的可撤销操作。")
                 print(f"撤销文件: {latest_undo_file.name}")
                 undo_summary = get_undo_summary(latest_undo_file) # get_undo_summary 在 undo_utils
                 print(f"摘要: {undo_summary or '无法获取上次操作的详细信息。'}")
@@ -515,7 +511,7 @@ async def main_cli_entry(args):
                         else: print("无效选项，请输入 0 到 5 之间的数字。")
                     except EOFError: print("\n操作已取消。"); action_to_perform = None; break
             else:
-                logging.info(f"未找到针对 '{config_name}' ({api_type}) 的撤销文件。")
+                logging.info(f"未找到针对 '{config_name}' 的撤销文件。")
                 # 在没有撤销文件时，提供查询和更新选项
                 while True:
                     try:
@@ -532,29 +528,29 @@ async def main_cli_entry(args):
         if action_to_perform == 'query_all':
             print("\n--- 查询所有渠道 ---")
             logging.info("开始查询所有渠道...")
-            tool_instance = _get_tool_instance(api_type, connection_config_path_str, None, script_config=script_config)
+            tool_instance = _get_tool_instance(connection_config_path_str, None, script_config=script_config)
             if not tool_instance:
                 final_exit_code = 1
             else:
                 final_exit_code = await _execute_query(tool_instance)
         elif action_to_perform == 'update':
             # 传递 script_config 给处理器
-            final_exit_code = await run_single_site_operation(args, connection_config_path_str, api_type, script_config)
+            final_exit_code = await run_single_site_operation(args, connection_config_path_str, script_config)
         elif action_to_perform == 'undo':
             config_name = Path(connection_config_path_str).stem
-            undo_file_to_use = find_latest_undo_file_for(config_name, api_type)
+            undo_file_to_use = find_latest_undo_file_for(config_name)
             if not undo_file_to_use:
-                 logging.error(f"错误：在执行撤销前未能找到针对 '{config_name}' ({api_type}) 的撤销文件。")
-                 print(f"错误：未找到可用于 '{config_name}' ({api_type}) 的撤销文件。")
+                 logging.error(f"错误：在执行撤销前未能找到针对 '{config_name}' 的撤销文件。")
+                 print(f"错误：未找到可用于 '{config_name}' 的撤销文件。")
                  final_exit_code = 1
             else:
                 print(f"\n--- 撤销模式 ---")
                 print(f"将使用文件 '{undo_file_to_use.name}' 进行撤销。")
                 # 传递 script_config 给处理器
-                final_exit_code = await perform_undo(api_type, connection_config_path_str, undo_file_to_use, args.yes)
+                final_exit_code = await perform_undo(connection_config_path_str, undo_file_to_use, args.yes)
         elif action_to_perform == 'test_and_enable':
             # 传递 script_config 给处理器
-            final_exit_code = await run_test_and_enable_disabled(args, connection_config_path_str, api_type, script_config)
+            final_exit_code = await run_test_and_enable_disabled(args, connection_config_path_str, script_config)
         elif action_to_perform == 'test_channel_model':
             logging.info("用户选择交互式测试指定模型渠道。")
             # 交互模式下，默认使用根目录的 DEFAULT_CHANNEL_MODEL_TEST_CONFIG_PATH
@@ -600,18 +596,14 @@ async def main_cli_entry(args):
             if not api_config:
                  print(f"错误：无法加载连接配置文件 '{Path(connection_config_path_str).name}'。")
                  return 1
-            api_type = api_config.get('api_type')
-            if not api_type or api_type not in ["newapi", "voapi"]:
-                logging.error(f"错误：连接配置文件 '{connection_config_path_str}' 中缺少有效 'api_type' ('newapi' 或 'voapi')。")
-                print(f"错误：连接配置文件 '{Path(connection_config_path_str).name}' 中缺少有效 'api_type'。")
-                return 1
+            api_type = "newapi"
         except Exception as e:
             logging.error(f"加载连接配置 '{connection_config_path_str}' 以获取 API 类型时出错: {e}", exc_info=True)
             print(f"错误：无法从 '{Path(connection_config_path_str).name}' 加载 API 类型。请检查文件和日志。")
             return 1
         
         print(f"\n--- 查询模式 ({Path(connection_config_path_str).name}) ---")
-        tool_instance = _get_tool_instance(api_type, connection_config_path_str, None, script_config=script_config)
+        tool_instance = _get_tool_instance(connection_config_path_str, None, script_config=script_config)
         if not tool_instance:
             final_exit_code = 1
         else:
@@ -627,11 +619,7 @@ async def main_cli_entry(args):
             if not api_config:
                  print(f"错误：无法加载连接配置文件 '{Path(connection_config_path_str).name}'。")
                  return 1
-            api_type = api_config.get('api_type')
-            if not api_type or api_type not in ["newapi", "voapi"]:
-                logging.error(f"错误：连接配置文件 '{connection_config_path_str}' 中缺少有效 'api_type' ('newapi' 或 'voapi')。")
-                print(f"错误：连接配置文件 '{Path(connection_config_path_str).name}' 中缺少有效 'api_type'。")
-                return 1
+            api_type = "newapi"
             logging.info(f"从配置 '{Path(connection_config_path_str).name}' 加载 API 类型: {api_type} 用于查找 Key。")
         except Exception as e:
             logging.error(f"加载连接配置 '{connection_config_path_str}' 以获取 API 类型时出错: {e}", exc_info=True)
@@ -639,7 +627,7 @@ async def main_cli_entry(args):
             return 1
 
         print(f"\n--- 正在实例 '{Path(connection_config_path_str).name}' ({api_type}) 中查找 API Key: '{key_to_find}' ---")
-        tool_instance = _get_tool_instance(api_type, connection_config_path_str, None, script_config=script_config)
+        tool_instance = _get_tool_instance(connection_config_path_str, None, script_config=script_config)
         if not tool_instance:
             final_exit_code = 1
         else:

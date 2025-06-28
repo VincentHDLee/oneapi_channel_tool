@@ -80,18 +80,10 @@ def load_api_config(yaml_path_str: str) -> dict:
             msg = f"API 配置文件内容无效，期望为字典格式: {yaml_path}"
             logging.error(msg)
             raise ValueError(msg)
-        required_keys = ['site_url', 'api_token', 'api_type'] # 添加 api_type 到必需键
+        required_keys = ['site_url', 'api_token'] # 移除 api_type
         missing_keys = [k for k in required_keys if k not in config_data]
         if missing_keys:
             msg = f"API 配置缺失: 请检查 {yaml_path} 中的 {', '.join(missing_keys)}"
-            logging.error(msg)
-            raise ValueError(msg)
-
-        # 验证 api_type 的值
-        api_type_value = config_data.get('api_type')
-        valid_api_types = {"newapi", "voapi"}
-        if api_type_value not in valid_api_types:
-            msg = f"API 配置错误: {yaml_path} 中的 'api_type' 值 '{api_type_value}' 无效。有效值为: {valid_api_types}"
             logging.error(msg)
             raise ValueError(msg)
 
@@ -110,7 +102,7 @@ def load_api_config(yaml_path_str: str) -> dict:
 
     # 验证从缓存加载的数据 (如果使用了缓存)
     if use_cache:
-        required_keys = ['site_url', 'api_token', 'api_type']
+        required_keys = ['site_url', 'api_token']
         missing_keys = [k for k in required_keys if k not in config_data]
         if missing_keys:
              # 缓存无效，需要重新加载 YAML
@@ -122,11 +114,6 @@ def load_api_config(yaml_path_str: str) -> dict:
              missing_keys_yaml = [k for k in required_keys if k not in config_data]
              if missing_keys_yaml: raise ValueError(f"API 配置缺失 (YAML): {yaml_path} 中的 {', '.join(missing_keys_yaml)}")
              use_cache = False # 标记未使用缓存
-             # 重新验证 api_type
-             api_type_value = config_data.get('api_type')
-             valid_api_types = {"newapi", "voapi"}
-             if api_type_value not in valid_api_types:
-                 raise ValueError(f"API 配置错误 (YAML): {yaml_path} 中的 'api_type' 值 '{api_type_value}' 无效。有效值为: {valid_api_types}")
              # 重新确保 site_url 结尾
              if config_data.get('site_url') and not config_data['site_url'].endswith('/'):
                  config_data['site_url'] += '/'
@@ -139,36 +126,8 @@ def load_api_config(yaml_path_str: str) -> dict:
              except Exception as e:
                  logging.warning(f"写入 JSON 缓存文件 {json_cache_path} 时出错 (因缓存失效): {e}")
 
-        else:
-             # 验证缓存中的 api_type 值
-             api_type_value = config_data.get('api_type')
-             valid_api_types = {"newapi", "voapi"}
-             if api_type_value not in valid_api_types:
-                 # 缓存无效
-                 logging.warning(f"缓存的 API 配置 {json_cache_path} 中的 'api_type' 值 '{api_type_value}' 无效。将强制重新加载 YAML。")
-                 # 同上，重新加载 YAML 并验证
-                 logging.debug(f"从 YAML 文件加载 API 配置: {yaml_path}")
-                 config_data = load_yaml_config(yaml_path)
-                 if not isinstance(config_data, dict): raise ValueError(f"API 配置文件内容无效: {yaml_path}")
-                 required_keys_yaml = ['site_url', 'api_token', 'api_type']
-                 missing_keys_yaml = [k for k in required_keys_yaml if k not in config_data]
-                 if missing_keys_yaml: raise ValueError(f"API 配置缺失 (YAML): {yaml_path} 中的 {', '.join(missing_keys_yaml)}")
-                 use_cache = False
-                 api_type_value_yaml = config_data.get('api_type')
-                 if api_type_value_yaml not in valid_api_types:
-                     raise ValueError(f"API 配置错误 (YAML): {yaml_path} 中的 'api_type' 值 '{api_type_value_yaml}' 无效。有效值为: {valid_api_types}")
-                 if config_data.get('site_url') and not config_data['site_url'].endswith('/'):
-                     config_data['site_url'] += '/'
-                 try:
-                     cache_dir.mkdir(parents=True, exist_ok=True)
-                     with open(json_cache_path, 'w', encoding='utf-8') as f_json:
-                         json.dump(config_data, f_json, indent=2, ensure_ascii=False)
-                     logging.debug(f"已更新/创建 JSON 缓存文件 (因缓存 api_type 失效): {json_cache_path}")
-                 except Exception as e:
-                     logging.warning(f"写入 JSON 缓存文件 {json_cache_path} 时出错 (因缓存 api_type 失效): {e}")
-
     # 记录最终加载成功的日志（确保在所有逻辑之后，并在返回前）
-    logging.info(f"API 配置加载成功 (来源: {'缓存' if use_cache else 'YAML'}): URL={config_data.get('site_url', '未配置')}, 类型={config_data.get('api_type', '未知')}")
+    logging.info(f"API 配置加载成功 (来源: {'缓存' if use_cache else 'YAML'}): URL={config_data.get('site_url', '未配置')}")
     return config_data
 
 def _validate_match_mode(match_mode):
